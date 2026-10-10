@@ -1,0 +1,139 @@
+# Howling Rift — PvE Roguelike
+
+An ARAM-only, LoL-inspired 3v3 PvE game built with Godot 4. Arena mode has been removed.
+
+
+Current release: **v0.4.2**. [Download the Windows build](https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/latest). Extract the entire ZIP and run **Howling Rift.exe**. Start Steam for Spacewar co-op; solo and LAN play are also available.
+
+The latest update gives permanent equipment 19 dedicated painted icons with correct names and slot identities. Existing relics retain their stats and equipped positions. See [equipment update notes](GEAR_ART_V042.md), [daily quests and relics](DAILY_RELICS_V040.md), and [enemy progression and level 100](ENEMY_PROGRESSION_V041.md).
+
+Source includes the Windows GodotSteam extension and its license. Install Godot 4.6.3 or newer to edit and run the project; release builds use Godot 4.7.2. Generated caches, personal saves, test captures and local engine binaries are excluded from version control.
+
+## Play
+
+Open `project.godot` in Godot and press **F5**, or use `Play.cmd` with the installed Godot 4.6.3 engine. The game starts at a title menu. Select **Play Solo ARAM**, choose one of eighteen heroes, two different summoner spells, and difficulty **N1–N99**, then press **Play ARAM**.
+
+- **Right-click**: move or attack the clicked enemy. Ground clicks cancel your current attack order.
+- **A, then left-click**: attack move. Ground clicks prefer an eligible enemy near the cursor, including a short approach outside attack range. Without a cursor target, attack the enemy nearest your hero already in range; without nearby enemies, walk to the clicked spot and acquire enemies along the route. After a kill, resume that destination. Direct unit clicks lock that unit. **Shift+A** issues attack move immediately. A displays attack range and target feedback.
+- **S**: stop movement and cancel an attack before its windup finishes. Once a ranged shot has launched, it continues toward its target.
+- **Q/W/E/R**: cast skills toward your cursor. Hover icons for descriptions; use their **+** buttons or **Ctrl+Q/W/E/R** to spend skill points.
+- **D/F**: your selected Flash, Ignite, Heal or Ghost.
+- **Tab (hold)**: live scoreboard with both teams, K/D/A, CS, level, gold, items and respawn status. Click the team kill count to toggle it; Esc closes it without pausing.
+- **P** or click the gold counter: item shop. **B**: one-second recall; press again to cancel.
+- **U**: level-up build choices and picked upgrades.
+- **Esc**: close the current shop/build panel, cancel attack targeting, or open/close the match menu. The menu includes Resume, permanent upgrades/settings, Return to Main Menu and Quit. Solo matches pause; LAN matches keep running. **M** opens the match menu directly.
+- **Y**: unlock camera; arrows or screen edges pan. **Space** resumes following your hero.
+- **F11 / Alt+Enter**: fullscreen at native display resolution. The UI uses a 1920×1080 logical canvas and scales with the window.
+
+## Heroes
+
+| Hero | Inspiration | Kit |
+| --- | --- | --- |
+| Skadi | Ashe | Multishot, volley, dash, stun arrow |
+| Ember | Annie | Fire burst, cone, shield, summoned bear |
+| Bastion | Garen | Empowered strike, defense, spin, execute |
+| Solara | Lux | Binding, allied shield, light field, laser |
+| Nyra | Ahri | Returning orb, homing flames, charm, spirit dash |
+| Kael | Ezreal | Skillshot, mark, blink, barrage |
+| Kaze | Yasuo | Third-Q tornado, wind wall, dash through foes, aerial finisher |
+| Rokan | Lee Sin | Sonic Q recast, allied safeguard, slam, knockback kick |
+| Shade | Zed | Shuriken from hero and shadow, W swap, slash, delayed death mark |
+| Rixa | Jinx | Explosive ranged stance, zap, stun traps, giant rocket |
+| Scarlet | Katarina | Cluster daggers, speed spin, targeted blink, dagger storm |
+| Aurelia | Kayle | Sword wave, heal, empowered attacks, temporary invulnerability; ranged at level 6 |
+
+The six added heroes use new generated transparent artwork and 24 painted ability icons. Names and balancing are adapted for this game's PvE pacing.
+
+## Three-player LAN co-op
+
+Steam internet co-op is also available for development testing with Spacewar
+(AppID 480). Choose **Host Steam** or **Join Steam** on the title screen.
+See [Steam multiplayer setup and testing](STEAM_MULTIPLAYER.md).
+
+Run the same game build on all PCs on your local network. One player selects **Host LAN Co-op**. The lobby shows the host's LAN IP. The other two enter that IP on the title screen and select **Join LAN**. Everyone chooses a hero and two summoners, then presses **Ready**. The host starts the match. Up to three humans share the blue team; empty slots are filled by AI.
+
+The host controls difficulty and runs combat. Every guest controls their own hero, shops, ranks skills and chooses their own level-earned build upgrades. Camera, inventory and HUD follow the local player. Each player receives permanent completion credits in their own local profile. Returning to the menu during an unfinished match does not grant completion credits.
+
+Menus do not pause LAN combat. If a guest disconnects, AI takes over their hero. If the host leaves, the session ends and guests return to the title screen. New players cannot join after the match starts.
+
+The game uses **UDP port 24567**. If Windows asks, allow Godot/the game on your private network. Development validation used three separate native game processes connected through localhost; physical multi-PC LAN routing and firewall setup still need testing on your network.
+
+Networking uses [Godot ENet multiplayer](https://docs.godotengine.org/en/4.6/tutorials/networking/high_level_multiplayer.html), with commands validated by the host and compressed state updates sent separately from input commands.
+
+## Farming and hero progression
+
+Start at level 3 with Q/W/E learned. Nearby enemy minion deaths grant XP within **650 world units**, including kills by allied minions or towers. Dead heroes and heroes outside this range earn no minion XP. Last hits award creep gold and CS, plus **25% more XP** than soaking. Passive gold is 2 per second; start with 1000 gold.
+
+Basic attacks have a short windup. Time attacks around creep health, cancel with S or a movement order, and watch the gold ring on creeps that can be killed by a normal attack. Ranged attacks also have travel time. Critical strikes are not assumed by the last-hit cue.
+
+Every level grants a skill point. R unlocks at level 6 and ranks again at 11 and 16. Basic ability ranks are limited by hero level. Roguelike build choices are earned **only when reaching levels 4, 6, 8, 10, 12, 14, 16 and 18**. There is no free starting choice or timed reward. The HUD shows the next build level, and each choice names the level that earned it. Reopening a choice cannot reroll it. Drafts keep the lane running.
+
+Death keeps the match and build intact. Respawn takes approximately 4–7 seconds; skills, summoners and item cooldowns continue ticking while dead.
+
+## Shop and builds
+
+The compact bottom HUD puts portrait and stats on the left, Q/W/E/R in the middle, D/F alongside them, and six items in a three-column, two-row grid on the right. Health and mana sit below the actions; XP is a thin strip beneath the portrait. Repeated attack clicks preserve the current swing. Movement before contact cancels it; movement after contact preserves the attack cooldown. Direct attack clicks target the visible unit body, and melee approaches stop at attack range. Click gold to open the shop. The shop opens on the left above the HUD, leaving actions and the minimap visible.
+
+The large shop includes painted item art, search, hero recommendations, item categories, readable passive descriptions, clickable component recipes and six inventory slots. Buy or sell at your fountain or while dead; browse anywhere.
+
+76 items include attack, spell power, health, defense and boots options. Owned recipe components are consumed and credited at their full cost, including partially assembled recipes. Upgrading a component can free inventory space even with all six slots occupied. Selling returns 70%. Only one boots item is allowed. The shop has dedicated Tank, Bruiser and Marksman build filters.
+
+Build decisions include critical strikes with Infinity Edge, lifesteal and an overheal shield with Bloodthirster, current-health on-hit damage with Blade of the Ruined King, empowered attacks after skills with Sheen, periodic spell procs with Luden, mana-to-power scaling with Archangel, Deathcap's AP multiplier, Warmog's out-of-combat recovery and Thornmail's reflected attack damage. These are adapted for this game's PvE pacing.
+
+## Permanent progression and AI
+
+Completed wins and losses grant permanent credits. Buy account-wide health, damage, spell power, armor, regeneration or attack speed upgrades from hero select or the paused match menu. Incremental stat values stay fixed while prices rise quadratically with upgrade level, up to 99. Credits, upgrades and selected difficulty persist in `user://progression.cfg`. Unfinished matches do not pay completion rewards.
+
+N1–N99 increases enemy health, damage, speed, reactions and pursuit. AI evaluates kill opportunities, uses skills, retreats from unsafe towers and buys builds. Changing difficulty in the match menu preserves enemy health percentages; completion rewards use the lowest difficulty played in the match.
+
+## Validation
+
+`tests/GroundAttackMoveTests.tscn` checks actual A + ground-click input, cursor priority, nearest-enemy fallback, empty-ground movement, acquisition along the route, resuming after a kill and cancellation with right-click.
+
+`tests/AttackScoreboardTests.tscn` checks body targeting, repeated-click windup preservation, melee approach distance, cancellation and chase recovery, plus native Tab/click/Esc scoreboard input and fullscreen/windowed captures.
+
+`tests/CompactHudTests.tscn` checks HUD bounds, the item grid, gold-button clicks, shop/Esc routing, tooltips and recall placement, and captures 1080p fullscreen and 720p windowed layouts.
+
+`tests/RosterMenuTests.tscn` checks all eighteen heroes, title-menu transitions and match cleanup; `tests/HeroMechanicTests.tscn` verifies recasts and signature abilities. `tests/LanCoopTests.tscn` runs one host and two clients, checking movement, skills, summoners, independent drafts, purchases, death cooldowns, completion rewards and disconnect takeover. `tests/MenuInputTests.tscn` exercises real mouse/keyboard menu navigation and confirmation dialogs. `tests/NewMenusVisual.tscn` captures title, eighteen-hero selection, pause and upgrade menus. Run `./tests/RunLanTests.ps1 -Native` for the three-process LAN test; pass `-GodotExe` if your Godot executable is elsewhere.
+
+`tests/ARAMLoopTests.tscn` covers level-only rewards, XP soaking and last hits, component synthesis, shop restrictions, combat passives, selected summoners, attack windup cancellation, real Buy clicks and Esc routing. Other regression scenes cover movement, hero skills, permanent progression, fast respawns, graphics and audio. `tests/LaneTests.tscn` runs a complete AI lane simulation. `tests/ARAMVisual.tscn` captures the hero roster, shop and level-up UI in native fullscreen and a 1280×720 window.
+
+Painted equipment and summoner atlas: `assets/ui/item-summoner-icons.png`. Generation prompt: `assets/ui/ITEM_ART.md`.
+
+## Version 0.2.0 expansion
+
+18 heroes, 46 items, new combat item passives and fortified cliff ends at both thrones. See [expansion notes](EXPANSION_V02.md) for the new kits and validation.
+
+## Version 0.2.2 balance and presentation
+
+Real mana for the new heroes, a 31% larger battlefield view, dedicated animated projectiles, corrected repeated-hit AP scaling, innate magic resistance, and tougher enemy heroes and structures at higher N. See [balance notes](BALANCE_V022.md).
+
+## Version 0.2.3 casting options
+
+Turn off **SMART CAST Q / W / E / R** in Settings to aim first and left-click to cast. Right-click or Esc cancels; your preference is saved. See [casting notes](CASTING_V023.md).
+
+## Version 0.2.4 tank and AD builds
+
+24 new items expand armor, anti-mage, team shield, bruiser, cleave, on-hit, crit and antiheal builds. See [item expansion notes](TANK_AD_V024.md) for examples and exact adapted behavior. All co-op players need the same v0.2.4 build.
+
+## Version 0.2.5 core PvE progression
+Hybrid items appear in every relevant stat category. Six repeatable stat consumables start at 8,000 gold and increase in price by 35% per purchase, independently per elixir. Their AD, AP, HP, armor, magic resistance and attack-speed bonuses survive death and reset with the match; they consume no inventory slot or permanent credits. See [core PvE notes](CORE_PVE_V025.md).
+
+## Version 0.2.6 mage shop filter
+The shop now has a dedicated Mage builds filter containing AP items, magic penetration, mana, antiheal, defensive mage items, boots and components. All twelve shop filters fit the existing panel. All co-op players need v0.2.6.
+
+## Version 0.2.7 tactics and item UX
+Hover owned items or shop cards for readable stat/passive tooltips. Left-click an owned item to browse its full upgrade tree, or click a shop item to select it and browse its upgrades. Thirty level-up templates include tank, caster, bruiser and marksman choices with randomized stat magnitudes; reopening cannot reroll them. Six painted frost-brush patches provide concealment and AI ambush routes. Bots dodge visible long-range skillshots after N-dependent reaction time. Projectile animation mapping trims transparent padding, and Warden/Thresh hooks have a visible chain. See [tactics notes](TACTICS_UX_V027.md). All co-op players need v0.2.7.
+
+## Version 0.2.8 tooltip startup fix
+Item tooltip handlers now attach after scene startup completes. This prevents failed root-node attachment and callbacks into an uninitialized tooltip manager. Native regression covers deaths, corpse animation frames, cooldowns, respawns and item hovering while dead across all 18 heroes and every minion type. All co-op players need v0.2.8.
+
+
+## v0.4.0 daily quests and permanent equipment
+
+Open **Daily Quests / Equipment** on the main menu. Five daily objectives award up to five saved relics per day. Equip head, body armor, weapon, sub weapon, shoes, two rings, necklace and gloves between matches. Higher N gives higher item levels, better rarity odds and stronger enemies. Existing permanent credits and upgrades remain available. See [daily relic notes](DAILY_RELICS_V040.md). All co-op players should use v0.4.0.
+
+
+## v0.4.1 enemy comeback and level 100
+
+Each enemy hero receives 600 bonus gold at death 11, then 250 more per subsequent death. Enemy XP increases with N difficulty. Heroes can level to 100; after earning all eighteen skill points, each further level adds 3 AD, 5 AP, 45 HP and 25 mana. These match bonuses survive death and reset next game. See ENEMY_PROGRESSION_V041.md. All co-op players should use v0.4.1.

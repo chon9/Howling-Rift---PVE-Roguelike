@@ -53,6 +53,15 @@ func run() -> void:
   for stat in profile.bonuses():check(is_equal_approx(state.player.permanent_bonus.get(stat,0.),profile.bonuses()[stat]),"exported co-op starts with equipped stat: "+stat)
   check(load("res://assets/vfx/expansion-projectiles-v1.png")!=null,"exported new projectile sheet loads")
   var kit_art=load("res://scripts/KitEffectArt.gd")
+  var roster12=load("res://scripts/RosterExpansion12.gd");var actions12=load("res://scripts/ActionSpriteArt.gd");var icons12=load("res://scripts/AbilityArt.gd")
+  check(root.get_node("ChampionData").CHAMPIONS.size()==30,"export has all thirty heroes")
+  for hero in roster12.KEYS:
+   for action in ["idle","run","attack","q","w","e","r","hit","death","recall"]:
+    for frame in range(6):check(actions12.texture_for_frame("hero_"+hero,action,frame)!=null and actions12.region("hero_"+hero,action,frame).has_area(),"exported action "+hero+action+str(frame))
+   for i in range(4):
+    check(icons12.icon_for(hero,i)!=null,"exported new icon "+hero+str(i))
+    var id=hero+"_"+["q","w","e","r"][i]
+    check(kit_art.sheet(id)!=null and kit_art.region(id,3).has_area(),"exported new skill atlas "+id)
   var feedback_art=load("res://scripts/CombatFeedbackArt.gd")
   check(not game.sound_fx.announcer_clips.has("ally_slain") and not game.sound_fx.announcer_clips.has("victory_voice") and game.sound_fx.announcer_clips.values().all(func(clip):return clip.resource_path.begins_with("res://assets/audio/mobile-announcer-v1/")),"exported voice bank contains no TTS fallbacks")
   check(kit_art.sheet("veigar_e").resource_path.ends_with("vexel-ground-v2.png"),"exported Vexel uses corrected circular ground sheet")

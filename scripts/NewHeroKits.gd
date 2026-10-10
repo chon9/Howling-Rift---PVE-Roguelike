@@ -32,6 +32,7 @@ static func sonic_mark_target(c):
  return null
 static func recast_info(c, index: int) -> Dictionary:
  if c.dead: return {}
+ if c.hero_key in RosterExpansion12.KEYS:return Roster12Kits.recast_info(c,index)
  if c.hero_key=="thresh" and index==0:
   for unit in GameState.champions+GameState.minions:
    if not is_instance_valid(unit) or unit.dead:continue
@@ -46,6 +47,7 @@ static func recast_info(c, index: int) -> Dictionary:
   return {"time":float(c.buffs.shadow.time),"duration":4.0,"label":"W2 SWAP","available":true}
  return {}
 static func recast(c, index: int, point: Vector2) -> bool:
+ if c.hero_key in RosterExpansion12.KEYS:return Roster12Kits.recast(c,index,point)
  if c.hero_key=="thresh" and index==0:
   var info=recast_info(c,index)
   if info.is_empty() or not info.available:return false
@@ -174,5 +176,6 @@ static func cast(c, id: String, point: Vector2) -> bool:
   _: return false
  return true
 static func expire(c, key: String, value: Dictionary) -> void:
+ Roster12Combat.expire(c,key,value)
  if key == "death_mark" and is_instance_valid(value.src): hit(value.src,c,value.base+value.stored*0.3,"mark")
  if key == "divine" and is_instance_valid(value.src): area(value.src,c.world_pos(),170,value.dmg)

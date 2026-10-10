@@ -13,6 +13,7 @@ func skill_description(key: String, index: int, champion = null) -> String:
 		if not recast.is_empty(): recast_text = "\n\n%s: %.1fs remaining%s" % [recast.label,recast.time," • target out of range" if not recast.available else " • press again to recast"]
 	var numbers = preload("res://scripts/SkillScaling.gd").description(skill.cast_id,champion.skill_ranks[index] if champion != null else 1,champion)
 	if ExpansionRoster.KEYS.has(key): numbers = ExpansionKits.description(skill.cast_id,champion,champion.skill_ranks[index] if champion != null else 1)
+	if key in RosterExpansion12.KEYS: numbers = Roster12Kits.description(skill.cast_id,champion,champion.skill_ranks[index] if champion != null else 1)
 	var reach = "Self" if skill.range <= 0 else "%d units" % int(skill.range)
 	return "%s  •  %s%s\n\n%s\n\nMana: %d  •  Cooldown: %.1fs  •  Range: %s" % [skill.key, skill.name, rank_text, skill.desc+"\n\n"+numbers+recast_text, skill.cost, cooldown, reach]
 # Autoload: ChampionData — stat tables + skill metadata for each champion.
@@ -21,6 +22,7 @@ func skill_description(key: String, index: int, champion = null) -> String:
 
 func _ready() -> void:
 	CHAMPIONS.merge(ExpansionRoster.heroes())
+	CHAMPIONS.merge(RosterExpansion12.heroes())
 var CHAMPIONS = {
 	"lux": {
 		"name":"Solara", "title":"The Prism Keeper", "role":"ARTILLERY • ROOT • LASER", "icon":"✦",

@@ -22,7 +22,7 @@ func refresh() -> void:
  var next_shield = maxf(0, unit.shield) if unit.kind == "champion" and not unit.dead else 0.0
  if next_shield != shield_amount: shield_pulse = 0.3 if next_shield > shield_amount else 0.18
  shield_amount = next_shield
- visible = stun_remaining>0 or ignite_remaining>0 or shield_amount>0
+ visible = stun_remaining>0 or ignite_remaining>0 or shield_amount>0 or ["vital","grand_challenge","rifle_mark","artillery","arcanopulse","parry"].any(func(k):return unit.buffs.has(k))
  queue_redraw()
 
 func _process(delta: float) -> void:
@@ -63,6 +63,7 @@ func _background(color: Color) -> StyleBoxFlat:
 
 func _draw() -> void:
  if not is_instance_valid(unit) or unit.dead: return
+ _draw_roster_status()
  var hero = unit.kind == "champion"
  var head_y = -Constants.CHAMP_ART_HEIGHT-56 if hero else unit.art_rect().position.y-24.0
  if shield_amount>0:
@@ -90,3 +91,19 @@ func _draw() -> void:
   _badge("IGNITE %.1fs" % ignite_remaining,burn_y,Color("ff8640"))
  if stun_remaining>0:
   _badge("STUNNED %.1fs" % stun_remaining,head_y,Color("ba8bff"),true)
+
+func _draw_roster_status() -> void:
+ if unit.buffs.has("vital") or unit.buffs.has("grand_challenge"):
+  var challenge=unit.buffs.has("grand_challenge");var b=unit.buffs.grand_challenge if challenge else unit.buffs.vital
+  for side in range(4):
+   if challenge and int(b.mask)&(1<<side):continue
+   if not challenge and side!=int(b.side):continue
+   var direction=Vector2.from_angle(side*PI/2);var point=direction*42;var tangent=direction.orthogonal()
+   draw_colored_polygon(PackedVector2Array([point-direction*9,point+direction*5+tangent*8,point+direction*5-tangent*8]),Color("f4c46f"))
+   draw_arc(Vector2.ZERO,42,side*PI/2-.3,side*PI/2+.3,12,Color("fff1bc"),3.,true)
+ if unit.buffs.has("rifle_mark"):draw_arc(Vector2(0,-45),22,0,TAU,32,Color("e6b4ff"),2.5,true)
+ if unit.kind!="champion":return
+ var y=-Constants.CHAMP_ART_HEIGHT-90
+ if unit.buffs.has("artillery"):_badge("ARTILLERY %d • %.1fs" % [unit.buffs.artillery.shots,unit.buffs.artillery.time],y,Color("8adfff"))
+ elif unit.buffs.has("arcanopulse"):_badge("CHARGING • Q TO FIRE",y,Color("8adfff"))
+ elif unit.buffs.has("parry"):_badge("PARRY %.1fs" % unit.buffs.parry.time,y,Color("b4d9ff"))

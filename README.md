@@ -3,7 +3,7 @@
 An ARAM-only, LoL-inspired 3v3 PvE game built with Godot 4. Arena mode has been removed.
 
 
-Current release: **v0.4.5**. [Download the Windows build](https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/latest). Extract the entire ZIP and run **Howling Rift.exe**. Start Steam for Spacewar co-op; solo and LAN play are also available.
+Current release: **v0.5.0**. [Download the Windows build](https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/latest). Extract the entire ZIP and run **Howling Rift.exe**. Start Steam for Spacewar co-op; solo and LAN play are also available.
 
 The latest update restores Thresh’s connecting hook chain in co-op. See [multiplayer hook fix](HOOK_COOP_V045.md). Includes automatic version checking, verified background updates, smoother co-op networking and brighter Vesper projectiles. Permanent equipment uses 19 dedicated painted icons with correct names and slot identities. Existing relics retain their stats and equipped positions. See [equipment update notes](GEAR_ART_V042.md), [daily quests and relics](DAILY_RELICS_V040.md), and [enemy progression and level 100](ENEMY_PROGRESSION_V041.md).
 
@@ -15,7 +15,7 @@ Download v0.4.4 once to install the updater. Windows releases then check GitHub 
 
 ## Play
 
-Open `project.godot` in Godot and press **F5**, or use `Play.cmd` with the installed Godot 4.6.3 engine. The game starts at a title menu. Select **Play Solo ARAM**, choose one of eighteen heroes, two different summoner spells, and difficulty **N1–N99**, then press **Play ARAM**.
+Open `project.godot` in Godot and press **F5**, or use `Play.cmd` with the installed Godot 4.6.3 engine. The game starts at a title menu. Select **Play Solo ARAM**, choose one of thirty heroes, two different summoner spells, and difficulty **N1–N99**, then press **Play ARAM**.
 
 - **Right-click**: move or attack the clicked enemy. Ground clicks cancel your current attack order.
 - **A, then left-click**: attack move. Ground clicks prefer an eligible enemy near the cursor, including a short approach outside attack range. Without a cursor target, attack the enemy nearest your hero already in range; without nearby enemies, walk to the clicked spot and acquire enemies along the route. After a kill, resume that destination. Direct unit clicks lock that unit. **Shift+A** issues attack move immediately. A displays attack range and target feedback.
@@ -141,3 +141,7 @@ Open **Daily Quests / Equipment** on the main menu. Five daily objectives award 
 ## v0.4.1 enemy comeback and level 100
 
 Each enemy hero receives 600 bonus gold at death 11, then 250 more per subsequent death. Enemy XP increases with N difficulty. Heroes can level to 100; after earning all eighteen skill points, each further level adds 3 AD, 5 AP, 45 HP and 25 mana. These match bonuses survive death and reset next game. See ENEMY_PROGRESSION_V041.md. All co-op players should use v0.4.1.
+
+## v0.5.0: Twelve more heroes
+
+The roster now has 30 heroes. Aegis, Bolt, Saur, Lancer, Riftblade, Duelia, Caliber, Solstice, Zephyr, Pyre, Umbra and Arclight each have four distinct abilities, complete action animation mappings, dedicated portraits, skill icons and effects. See [roster and co-op validation notes](ROSTER_EXPANSION_V050.md). All co-op players need v0.5.0.

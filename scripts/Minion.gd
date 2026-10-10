@@ -192,9 +192,11 @@ func update_frame(delta: float) -> void:
 
 	ExpansionCombat.tick(self,delta)
 	if dead:return
+	Roster12Combat.tick(self,delta)
 	for key in buffs.keys():
 		buffs[key]["time"] -= delta
-		if buffs[key]["time"] <= 0: buffs.erase(key)
+		if buffs[key]["time"] <= 0:
+			var expired=buffs[key].duplicate();buffs.erase(key);Roster12Combat.expire(self,key,expired)
 
 	# Lifetime (Tibbers)
 	if lifetime > 0:

@@ -43,6 +43,13 @@ var visual_scale: float = 1.0
 var hook_chain: bool = false
 var effect_id: String = ""
 var thresh_mark: bool = false
+var special_hit: bool = false
+var no_structures: bool = false
+var champion_dash: bool = false
+var interceptable: bool = false
+var bounces: int = 0
+var falloff: float = 1.
+var cast_origin: Vector2 = Vector2.ZERO
 func is_vesper_bolt() -> bool:
 	# The effect ID also survives LAN snapshots, whose visual replicas have no source.
 	return effect_id in ["vayne_auto", "vayne_e"]
@@ -64,6 +71,7 @@ func visual_origin() -> Vector2:
 	return Vector2(0,-visual_height).rotated(-rotation)
 
 func setup(_src, pos: Vector2, _dir: Vector2, opts: Dictionary) -> void:
+	special_hit=opts.get("special_hit",false);no_structures=opts.get("no_structures",false);champion_dash=opts.get("champion_dash",false);interceptable=opts.get("interceptable",false);bounces=opts.get("bounces",0);falloff=opts.get("falloff",1.);cast_origin=opts.get("origin",pos)
 	effect_id = opts.get("effect_id", "")
 	thresh_mark = opts.get("thresh_mark",false)
 	src = _src
@@ -106,6 +114,7 @@ func setup(_src, pos: Vector2, _dir: Vector2, opts: Dictionary) -> void:
 		art_row = ExpansionRoster.KEYS.find(src.hero_key)
 	if is_instance_valid(src) and src.kind=="champion" and src.hero_key=="vayne" and damage_type=="auto":
 		effect_id="vayne_auto"
+	if src.kind=="champion" and src.hero_key in RosterExpansion12.KEYS and damage_type=="auto":effect_id=src.hero_key+"_auto"
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	configure_presentation()
 
@@ -271,13 +280,19 @@ func update_frame(delta: float) -> void:
 	# Hit scan
 	var cands = GameState.minions + GameState.champions + GameState.structures
 	for u in cands:
-		if targeted and u != homing: continue
+		if targeted and u != homing and not (interceptable and u.kind=="champion"): continue
+		if u.kind=="structure" and (no_structures or champion_dash):continue
+		if u.kind=="structure" and effect_id.get_slice("_",0) in RosterExpansion12.KEYS and damage_type!="auto":continue
 		if hit_set.has(u): continue
 		if u == null or u.dead or u.team == team or not u.is_targetable: continue
 		if u.kind == "structure" and not u.is_structure_attackable(): continue
 		var dd = global_position.distance_to(u.world_pos())
 		if dd < size + u.size * 0.7:
-			get_tree().call_group("game_main", "deal_damage", src, u, dmg, damage_type)
+			if "buffs" in u and u.buffs.has("parry") and stun_time>0:u.buffs.parry.blocked_cc=true
+			var payload=Roster12Combat.special_damage(effect_id,src,u,dmg,cast_origin) if special_hit else dmg
+			get_tree().call_group("game_main", "deal_damage", src, u, payload, damage_type)
+			Roster12Combat.projectile_hit(self,u)
+			dmg*=falloff
 			if thresh_mark and is_instance_valid(src) and not u.dead and "buffs" in u and not u.buffs.has("cc_guard") and not u.buffs.has("spell_guard"):
 				u.buffs.chain_mark = {"time":1.5,"src":src}
 			if sonic_mark and is_instance_valid(src) and not u.dead and "buffs" in u:
@@ -287,9 +302,9 @@ func update_frame(delta: float) -> void:
 				get_tree().call_group("game_main","spawn_aoe",src,u.world_pos(),{"radius":explosion,"dmg":dmg*0.65,"duration":0.35,"color":color,"hit_set":[u]})
 			if mark_bonus > 0 and "buffs" in u:
 				u.buffs["flux_mark"] = {"time":4.0, "src":src, "bonus":mark_bonus}
-			var guarded="buffs" in u and (u.buffs.has("cc_guard") or u.buffs.has("spell_guard"))
+			var guarded="buffs" in u and (u.buffs.has("cc_guard") or u.buffs.has("spell_guard") or u.buffs.has("parry"))
 			if pull_distance>0 and not guarded and u.kind!="structure" and is_instance_valid(src):
-				if hook_chain:ForcedMotion.apply(u,src.world_pos()-u.world_pos(),pull_distance)
+				if hook_chain:ForcedMotion.apply(u,src.world_pos()-u.world_pos(),minf(pull_distance,maxf(0.,src.world_pos().distance_to(u.world_pos())-45.)))
 				else:u.global_position=GameState.clamp_walkable(u.world_pos()+(src.world_pos()-u.world_pos()).normalized()*pull_distance)
 			if knockback_distance>0 and not guarded and not u.dead and u.kind!="structure":
 				var destination=u.world_pos()+dir*knockback_distance

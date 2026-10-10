@@ -2,13 +2,14 @@ param(
     [string]$GodotExe = 'K:\Godot\Godot_v4.6.3-stable_win64_console.exe',
     [switch]$Native,
     [int]$Port = 24667,
-    [string]$Scene = 'tests/LanCoopTests.tscn'
+    [string]$Scene = 'tests/LanCoopTests.tscn',
+    [int]$RosterBatch = 0
 )
 $gameProject = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $testProcesses = @()
 try {
     foreach ($role in @('host','client1','client2')) {
-        $testArguments = @('--path', ('"' + $gameProject + '"'), $Scene, '--', $role, '--no-steam', '--test-lan-port', "$Port")
+        $testArguments = @('--path', ('"' + $gameProject + '"'), $Scene, '--', $role, '--no-steam', '--test-lan-port', "$Port", '--roster-batch', "$RosterBatch")
         if (-not $Native) { $testArguments = @('--headless') + $testArguments }
         $testProcesses += Start-Process -FilePath $GodotExe -ArgumentList $testArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $PSScriptRoot ("lan-final-$role.log")) -RedirectStandardError (Join-Path $PSScriptRoot ("lan-final-$role-errors.log"))
     }

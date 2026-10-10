@@ -25,11 +25,13 @@ var effect_dir: Vector2 = Vector2.RIGHT
 var zone_kind: String = ""
 var arm_delay: float = 0.0
 var follows_src: bool = false
+var special_hit: bool = false
 var broken_walls: Array = [false,false,false,false,false]
 var previous_positions: Dictionary = {}
 
 func setup(_src, pos: Vector2, opts: Dictionary) -> void:
 	effect_id=opts.get("effect_id", "");effect_dir=opts.get("effect_dir",Vector2.RIGHT);zone_kind=opts.get("zone_kind", "");arm_delay=opts.get("arm_delay",0.);follows_src=opts.get("follows_src",false)
+	special_hit=opts.get("special_hit",false)
 	src = _src
 	damage_type=opts.get("damage_type","skill");ring=opts.get("ring",false);tick_interval=opts.get("tick_interval",0.)
 	team = _src.team
@@ -82,6 +84,11 @@ func _draw() -> void:
 func update_frame(delta: float) -> void:
 	elapsed += delta
 	if follows_src and is_instance_valid(src) and not src.dead:global_position=src.world_pos()
+	if zone_kind in ["sphere","trap","heal_field"]:
+		_roster_zone(delta)
+		queue_redraw()
+		if elapsed>=duration:GameState.aoes.erase(self);queue_free()
+		return
 	if zone_kind in ["box","cage","lantern"]:
 		_update_zone()
 		queue_redraw()
@@ -95,6 +102,7 @@ func update_frame(delta: float) -> void:
 		for u in cands:
 			if hit_set.has(u) or u == null or u.dead or u.team == team or not u.is_targetable:
 				continue
+			if u.kind=="structure" and effect_id.get_slice("_",0) in RosterExpansion12.KEYS:continue
 			if u.kind == "structure" and not u.is_structure_attackable():
 				continue
 			var d = global_position.distance_to(u.world_pos())
@@ -104,9 +112,10 @@ func update_frame(delta: float) -> void:
 					var to_ang = (u.world_pos() - global_position).angle()
 					var diff = abs(wrapf(to_ang - cone_ang, -PI, PI))
 					if diff > arc * 0.5: continue
-				get_tree().call_group("game_main", "deal_damage", src, u, dmg, damage_type)
+				var payload=Roster12Combat.special_damage(effect_id,src,u,dmg,global_position) if special_hit else dmg
+				get_tree().call_group("game_main", "deal_damage", src, u, payload, damage_type)
 				hit_set.append(u)
-				var guarded="buffs" in u and (u.buffs.has("cc_guard") or u.buffs.has("spell_guard"))
+				var guarded="buffs" in u and (u.buffs.has("cc_guard") or u.buffs.has("spell_guard") or u.buffs.has("parry"))
 				if stun_time > 0 and "stun" in u and not guarded: u.stun = maxf(u.stun,stun_time)
 				if slow_pct > 0 and "buffs" in u and not guarded:
 					u.buffs["slow"] = {"pct": slow_pct, "time": slow_duration}
@@ -122,6 +131,11 @@ func _draw_kit_effect() -> void:
 	var sheet=KitEffectArt.sheet(effect_id);var region=KitEffectArt.region(effect_id,frame)
 	var rect=Rect2(Vector2.ONE*-radius,Vector2.ONE*radius*2)
 	if effect_id in ["veigar_w","veigar_e"]:rect=KitEffectArt.ground_rect(effect_id,radius)
+	if effect_id in ["xinzhao_w","lucian_q","xerath_q"]:
+		draw_set_transform(Vector2.ZERO,effect_dir.angle());rect=Rect2(-radius,-30,radius*2,60)
+	elif effect_id in ["brand_w","leona_r","xerath_w","xerath_r","sivir_r"]:rect=Rect2(-radius,-radius*1.6,radius*2,radius*2)
+	if effect_id.get_slice("_",0) in RosterExpansion12.KEYS and arm_delay>0 and elapsed<arm_delay:
+		draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(color,.6),2.,true)
 	# Ground outlines show the exact collision boundary beneath the painted pillars.
 	if zone_kind=="cage":draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(.7,.35,1.,.4 if elapsed>=arm_delay else .7),2.,true)
 	if effect_id=="veigar_w" and elapsed<arm_delay:draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(.75,.4,1.,.65),2.,true)
@@ -182,3 +196,14 @@ func try_lantern(unit,point: Vector2) -> bool:
 	if unit.is_bot and not BotSafety.can_enter(unit,src.world_pos()):return false
 	unit.stop_actions();unit.dash_target=src.world_pos();unit.is_dashing=true
 	return true
+
+func _roster_zone(delta: float) -> void:
+	if not is_instance_valid(src) or src.dead:elapsed=duration;return
+	if zone_kind=="sphere" or elapsed<arm_delay:return
+	if zone_kind=="heal_field":
+		for ally in GameState.champions:
+			if not ally.dead and ally.team==team and ally.world_pos().distance_to(global_position)<=radius:Roster12Combat.heal(ally,(25.+src.ad*.12)*delta)
+		return
+	for unit in GameState.champions:
+		if unit.dead or unit.team==team or unit.world_pos().distance_to(global_position)>radius+unit.size*.3:continue
+		Roster12Kits.control(unit,1.5);unit.buffs.rifle_mark={"time":4.,"src":src};elapsed=duration;break

@@ -227,6 +227,7 @@ func choose(index: int) -> void:
 	refresh_attention()
 
 func role_for(c) -> String:
+	if c.hero_key in RosterExpansion12.KEYS:return RosterExpansion12.role(c.hero_key)
 	if c.hero_key in ["garen","malphite","thresh"]: return "tank"
 	if c.hero_key in ["darius","leesin","yasuo","zed"]: return "bruiser"
 	if c.hero_key in ["ashe","jinx","vayne","kayle"]: return "marksman"

@@ -1,19 +1,22 @@
 """Read generated alpha silhouettes to map real action cells; never alter artwork."""
 from pathlib import Path
 from PIL import Image
-import numpy as np, json
+import numpy as np, json, argparse
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"assets/animations"
 HERO_ACTIONS=["idle","run","attack","q","w","e","r","hit","death","recall"]
 MINION_ACTIONS=["idle","run","attack","hit","death"]
 # Visually inspected omissions are supplied by a separate generated action strip.
 OVERRIDES={
+ "sivir":{"actions":["idle","run","attack","q","w","e","r","death","recall"],"extra":("hit",0),"extra_path":"zephyr-hit-v1.png","extra_actions":["hit"]},
  "yasuo":{"skip":["r"],"extra":("r",0),"extra_path":"yasuo-ultimate-v1.png","extra_actions":["r"]},
  "katarina":{"actions":["idle","run","attack","q","w","r","hit","death","recall"],"cuts":[0,178,327,495,656,831,999,1180,1376,1619],"extra":("e",0)},
  "annie":{"actions":["idle","run","attack","q","w","e","r","death","recall"],"cuts":[0,171,325,493,646,802,973,1145,1320,1540],"extra":("hit",1)},
  "lux":{"actions":["idle","run","attack","q","w","e","hit","death","recall"],"cuts":[0,170,329,497,668,819,1020,1202,1380,1619],"extra":("r",2)}
 }
-manifest={};reports={}
+parser=argparse.ArgumentParser();parser.add_argument('--heroes',nargs='*');selected=parser.parse_args().heroes
+manifest=json.loads((OUT/'manifest.json').read_text(encoding='utf-8')) if selected else {}
+reports=json.loads((OUT/'ATLAS_REPORT.json').read_text(encoding='utf-8')) if selected else {}
 def cuts_for(im,rows,manual=None):
  if manual is not None: return [round(y*im.height/1619) for y in manual]
  alpha=np.array(im.getchannel('A'))>144
@@ -110,6 +113,7 @@ def mapped_rows(im,path,actions,manual=None,skip=None):
 for category in ['heroes','minions']:
  for file in sorted((OUT/category).glob('*-actions-v1.png')):
   name=file.name.split('-actions-')[0]
+  if selected and (category!='heroes' or name not in selected):continue
   key=('hero_' if category=='heroes' else 'minion_')+name
   im=Image.open(file).convert('RGBA')
   if not im.getchannel('A').getextrema()[0]==0: raise ValueError('Missing alpha: '+key)
@@ -127,6 +131,19 @@ for category in ['heroes','minions']:
    for cell in rows[extra_action]:
     cell['path']=supplemental_path
     cell['relative_scale']=im.width/supplemental_im.width
+  supplements={"caitlyn":["q"],"lucian":["q"],"sivir":["q"],"brand":["q","w"],"syndra":["attack"],"xerath":["q","e"]}
+  if name in supplements:
+   supplemental=OUT/(name+'-cast-repair-v1.png')
+   supplemental_im=Image.open(supplemental).convert('RGBA')
+   supplemental_path='res://'+supplemental.relative_to(ROOT).as_posix()
+   extra=mapped_rows(supplemental_im,supplemental_path,supplements[name])
+   for action,cells in extra.items():
+    relative=float(np.median([f['body'][3] for f in rows['idle']]))/float(np.median([f['body'][3] for f in cells]))
+    for cell in cells:cell['path']=supplemental_path;cell['relative_scale']=relative
+    rows[action]=cells
+  if name=='sivir':
+   relative=float(np.median([f['body'][3] for f in rows['idle']]))/float(np.median([f['body'][3] for f in rows['hit']]))
+   for cell in rows['hit']:cell['relative_scale']=relative
   body_height=float(np.median([f['body'][3] for f in rows['idle']]))
   base=np.median([[f['pivot'][0]/f['region'][2],f['pivot'][1]/f['region'][3]] for f in rows['idle']],axis=0)
   frames=[]

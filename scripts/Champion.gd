@@ -408,6 +408,7 @@ func _recompute_stats() -> void:
 	var prev_mp = mp_max
 	hp_max = hero["hp"] + hero["hp_per_lv"] * lv_ + bonus_hp
 	hp_max *= difficulty_stats.get("health", 1.0)
+	if buffs.has("dominion"):hp_max+=buffs.dominion.health
 	mp_max = hero["mp"] + hero["mp_per_lv"] * lv_ + bonus_mp
 	base_mr = hero.get("mr", 35.0 if auto_type == "melee" else 30.0) + 1.25 * lv_
 	ad = hero["ad"] + hero["ad_per_lv"] * lv_ + bonus_ad
@@ -604,10 +605,11 @@ func effective_move_speed() -> float:
 	return m
 
 func effective_attack_range() -> float:
-	return atk_range + (100 if buffs.has("rockets") else 0)
+	return atk_range + (100 if buffs.has("rockets") else 0) + (40 if buffs.has("exile") else 0)
 
 func effective_atk_spd() -> float:
 	var m = atk_spd * (1.0 + bonus_as) * difficulty_stats.get("attack_speed", 1.0)
+	if buffs.has("roster_as"): m *= buffs.roster_as.mult
 	if buffs.has("focus"): m *= 1.4
 	if buffs.has("cripple"): m *= .8
 	return m
@@ -624,6 +626,7 @@ func try_cast_skill(idx: int, pt: Vector2) -> bool:
 		return true
 	if dead or stun > 0: return false
 	if buffs.has("silence"): return false
+	if buffs.has("parry") or (buffs.has("artillery") and idx!=3) or (buffs.has("culling") and idx!=3):return false
 	var look = (pt-world_pos()).normalized()
 	if NewHeroKits.recast(self,idx,pt):
 		if look.length_squared()>0.01: facing = look
@@ -658,10 +661,11 @@ func try_cast_skill(idx: int, pt: Vector2) -> bool:
 	skill_cds[idx] = effective_cd(sk["cd"])
 	if recall_time >= 0: recall_time = -1.0
 	get_tree().call_group("game_main", "play_sfx", "ultimate" if idx == 3 else "spell", self)
-	if hero_key != "yasuo" and not ExpansionRoster.KEYS.has(hero_key): get_tree().call_group("game_main", "spawn_spell_burst", self, global_position, 45.0 if idx != 3 else 70.0)
+	if hero_key != "yasuo" and not ExpansionRoster.KEYS.has(hero_key) and not hero_key in RosterExpansion12.KEYS: get_tree().call_group("game_main", "spawn_spell_burst", self, global_position, 45.0 if idx != 3 else 70.0)
 	return true
 
 func _dispatch_cast(cast_id: String, pt: Vector2) -> bool:
+	if hero_key in RosterExpansion12.KEYS: return Roster12Kits.cast(self,cast_id,pt)
 	if ExpansionRoster.KEYS.has(hero_key): return ExpansionKits.cast(self,cast_id,pt)
 	match cast_id:
 		"lux_q": _lux_q(pt)
@@ -861,6 +865,7 @@ func update_frame(delta: float) -> void:
 	ForcedMotion.tick(self,delta)
 	ExpansionKits.tick(self,delta)
 	ExpansionCombat.tick(self,delta)
+	Roster12Combat.tick(self,delta)
 	if dead:return
 	# Buff decay
 	var expired := []
@@ -924,6 +929,9 @@ func update_frame(delta: float) -> void:
 					auto_windup = 0
 					animator.cancel_attack()
 					atk_cd = 0
+
+	if buffs.has("artillery") or buffs.has("parry") or buffs.has("deadeye"):
+		_sync_bars();queue_redraw();return
 
 	# Dash
 	if is_dashing:
@@ -1040,7 +1048,9 @@ func _sync_bars() -> void:
 	shield_bar.size.x = clampf(Constants.CHAMP_BAR_WIDTH * shield / maxf(hp_max, 1), 2.0, Constants.CHAMP_BAR_WIDTH) if shield > 0 else 0.0
 	hp_bar.visible = not dead
 	hp_bar_bg.visible = not dead
-	mp_bar.visible = not dead and mp_max > 0
+	mp_bar.visible = not dead and (mp_max > 0 or hero_key=="renekton")
+	if hero_key=="renekton":
+		mp_bar.color=Color("de784a");mp_bar.size.x=Constants.CHAMP_BAR_WIDTH*buffs.get("fury",{}).get("value",0.)/100.
 	if mp_max > 0:
 		mp_bar.size.x = max(0.0, Constants.CHAMP_BAR_WIDTH * mp / mp_max)
 	name_label.visible = not dead
@@ -1060,7 +1070,7 @@ func _perform_auto(target) -> void:
 	BrushVision.reveal(self)
 	animator.release_attack(clampf(0.2/effective_atk_spd(),0.08,0.24))
 	get_tree().call_group("game_main", "play_sfx", "attack", self)
-	var dmg = ad
+	var dmg = ad + Roster12Combat.before_auto(self,target)
 	if buffs.has("hunt"):dmg+=buffs.hunt.damage
 	if buffs.has("empowered"):
 		dmg+=buffs.empowered.damage
@@ -1147,6 +1157,7 @@ func estimate_kill_damage(target) -> float:
 			"garen_e": value = (12 + 8 * r + ad * 0.4) * minf(4.0, window * 2)
 			"garen_r":
 				if target.hp < target.hp_max * 0.4: value = 150 + 150 * r + (target.hp_max - target.hp) * (0.2 + 0.05 * r)
+		if hero_key in RosterExpansion12.KEYS and sk.cast_id not in ["riven_e","fiora_r"]:value=Roster12Kits.amount(self,sk.cast_id)
 		if ExpansionKits.FORMULAS.has(sk.cast_id) and sk.cast_id not in ["darius_w","malphite_w","morgana_e","thresh_w","vayne_q","vayne_r"]:
 			value = ExpansionKits.amount(self,sk.cast_id)
 			if sk.cast_id == "morgana_w": value *= minf(3.0,window)
@@ -1156,6 +1167,7 @@ func estimate_kill_damage(target) -> float:
 		if value > 0:
 			mana -= sk.cost
 			var kind = "skill"
+			if hero_key in RosterExpansion12.KEYS:kind="physical" if Roster12Kits.physical(self) else "magic"
 			if ExpansionRoster.KEYS.has(hero_key): kind = "physical" if hero_key in ["darius","vayne"] else "magic"
 			if sk.cast_id in ["darius_r","garen_r"]: kind = "exec"
 			var resistance = 0.0 if kind == "exec" else ExpansionCombat.resist(target,self,kind)
@@ -1315,10 +1327,15 @@ func _try_bot_cast(target) -> void:
 	if hero_key == "thresh" and not NewHeroKits.recast_info(self,0).is_empty(): try_cast_skill(0,target.world_pos())
 	if hero_key == "leesin" and is_instance_valid(sonic_target) and sonic_target == target and distance <= 650 and BotSafety.can_enter(self,target.world_pos(),target.kind == "champion"): try_cast_skill(0,target.world_pos())
 	if hero_key == "zed" and buffs.has("shadow") and not buffs.shadow.swapped and distance > 180 and hp > hp_max*0.5: try_cast_skill(1,target.world_pos())
+	if hero_key in RosterExpansion12.KEYS:
+		for i in range(4):
+			if not Roster12Kits.recast_info(self,i).is_empty():
+				if hero_key != "xerath" or i != 0 or buffs.arcanopulse.time < .5: try_cast_skill(i,target.world_pos())
 	var casts = 0
 	for i in order:
 		if skill_ranks[i] <= 0 or skill_cds[i] > 0: continue
 		var sk = hero.skills[i]
+		if hero_key in RosterExpansion12.KEYS and sk.kind == "self" and distance > (atk_range+40 if i==0 or sk.cast_id in ["blitzcrank_e","fiora_e","sivir_w"] else 210): continue
 		if mp < sk.cost or (sk.range > 0 and distance > sk.range): continue
 		match sk.cast_id:
 			"darius_q","darius_e","malphite_e","thresh_e":

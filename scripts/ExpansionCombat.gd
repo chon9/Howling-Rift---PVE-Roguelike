@@ -27,6 +27,7 @@ static func on_spell(src,target,kind: String) -> void:
   target.buffs.item_burn={"time":3.,"tick":next_tick,"src":src}
  if src.inventory.has("morello"):target.buffs.grievous={"time":3.}
 static func after_hit(src,target,kind: String) -> void:
+ Roster12Combat.after_hit(src,target,kind)
  TankADCombat.after_hit(src,target,kind)
  if kind!="auto" or not is_instance_valid(src) or src.kind!="champion" or target.dead or target.kind=="structure":return
  if src.hero_key=="thresh" and src.rank(2)>0:

@@ -864,7 +864,9 @@ func refresh(delta: float) -> void:
 	hp_bar.value = player.hp
 	hp_text.text = "%d / %d" % [int(ceil(player.hp)), int(ceil(player.hp_max))]
 	if player.shield > 0: hp_text.text += "  +%d" % int(player.shield)
-	if player.mp_max > 0:
+	if player.hero_key=="renekton":
+		mp_bar.max_value=100.;mp_bar.value=player.buffs.get("fury",{}).get("value",0.);mp_text.text="%d / 100 FURY" % int(mp_bar.value)
+	elif player.mp_max > 0:
 		mp_bar.max_value = player.mp_max
 		mp_bar.value = player.mp
 		mp_text.text = "%d / %d" % [int(ceil(player.mp)), int(ceil(player.mp_max))]

@@ -3,6 +3,7 @@ extends RefCounted
 const EXTENDED = preload("res://assets/champions/extended-roster.png")
 const KEYS = ["yasuo","leesin","zed","jinx","katarina","kayle"]
 static func texture_for(key: String) -> Texture2D:
+ if key in RosterExpansion12.KEYS:return Roster12Art.icon(key,0)
  if ExpansionRoster.KEYS.has(key): return expansion_icon(key,0)
  var index = KEYS.find(key)
  if index < 0: return load("res://assets/champions/%s-painted.png" % key)

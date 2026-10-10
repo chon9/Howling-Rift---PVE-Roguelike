@@ -949,6 +949,7 @@ func deal_damage(src, target, dmg: float, dmg_type: String) -> void:
 	if LanSession.is_client(): return
 	if typeof(src) == TYPE_OBJECT and not is_instance_valid(src): src = null
 	if target == null or target.dead: return
+	if Roster12Combat.blocked(src,target,dmg_type):return
 	if ExpansionCombat.spell_block(target,dmg_type):return
 	if "buffs" in target and target.buffs.has("divine"): return
 	if dmg_type in ["auto", "skill"] and "buffs" in target and target.buffs.has("flux_mark"):
@@ -1063,6 +1064,7 @@ func _handle_death(killer, victim) -> void:
 	if victim.dead: return
 	if victim.kind == "champion": play_sfx("death" if victim == GameState.player else "kill", victim)
 	elif victim.kind == "structure": play_sfx("kill", victim)
+	if victim.kind in ["champion","minion"]:Roster12Combat.on_death(victim)
 	victim.dead = true
 	victim.hp = 0
 	if victim.kind in ["champion","minion"]: AnimatedCorpse.spawn(victim)

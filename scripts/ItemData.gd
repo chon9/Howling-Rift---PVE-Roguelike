@@ -13,6 +13,7 @@ func _ready() -> void:
  ITEMS.merge(TankADItems.items())
  ORDER.append_array(TankADItems.KEYS)
  BUILD_ORDERS.merge(TankADItems.BUILDS,true)
+ BUILD_ORDERS.merge(RosterExpansion12.builds(),true)
  ITEMS.merge(MatchTraining.items())
  ORDER.append_array(MatchTraining.KEYS)
 var ITEMS = {

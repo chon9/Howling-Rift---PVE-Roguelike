@@ -144,6 +144,27 @@ func _ready() -> void:
  daily_card.mouse_filter=Control.MOUSE_FILTER_IGNORE;design.add_child(daily_card)
  var daily_progress=text("Daily gear drops: %d / 5\nResets at local midnight" % Progression.daily.claimed.size(),Vector2(1455,252),17,GOLD,340)
  daily_progress.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
+ # Update controls stay on the main screen; installation never interrupts a match.
+ var updates=Panel.new();updates.position=Vector2(1120,730);updates.size=Vector2(670,160)
+ updates.add_theme_stylebox_override("panel",box(Color(.025,.04,.065,.94),GOLD));design.add_child(updates)
+ var update_label=text(GameUpdates.status,Vector2(1140,744),18,LIGHT,625)
+ update_label.name="UpdateStatus";update_label.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+ var update_button=action("CHECK FOR UPDATES",Vector2(1140,798),Vector2(365,46),func():
+  if GameUpdates.phase=="ready":GameUpdates.restart_to_update()
+  elif GameUpdates.phase=="available":GameUpdates.download_update()
+  else:GameUpdates.check_latest())
+ update_button.name="UpdateAction";update_button.add_theme_font_size_override("font_size",18)
+ var page=action("RELEASE NOTES",Vector2(1518,798),Vector2(250,46),func():GameUpdates.open_release())
+ page.add_theme_font_size_override("font_size",18)
+ var automatic=CheckButton.new();automatic.text="Download updates automatically";automatic.position=Vector2(1140,849)
+ automatic.add_theme_font_size_override("font_size",17);automatic.set_pressed_no_signal(GameUpdates.auto_download)
+ automatic.toggled.connect(func(value):GameUpdates.set_auto_download(value));design.add_child(automatic)
+ var refresh_updates=func():
+  update_label.text=GameUpdates.status
+  update_button.text="RESTART TO UPDATE" if GameUpdates.phase=="ready" else "DOWNLOAD UPDATE" if GameUpdates.phase=="available" else "DOWNLOADING…" if GameUpdates.phase=="downloading" else "CHECK FOR UPDATES"
+  update_button.disabled=GameUpdates.phase in ["checking","downloading","installing"]
+ GameUpdates.changed.connect(refresh_updates);refresh_updates.call()
+ tree_exiting.connect(func():GameUpdates.changed.disconnect(refresh_updates))
  var info=Panel.new();info.position=Vector2(920,912);info.size=Vector2(870,88)
  info.add_theme_stylebox_override("panel",box(Color(.025,.04,.065,.82),Color(.7,.57,.32,.65)))
  info.mouse_filter=Control.MOUSE_FILTER_IGNORE;design.add_child(info)

@@ -3,11 +3,15 @@
 An ARAM-only, LoL-inspired 3v3 PvE game built with Godot 4. Arena mode has been removed.
 
 
-Current release: **v0.4.2**. [Download the Windows build](https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/latest). Extract the entire ZIP and run **Howling Rift.exe**. Start Steam for Spacewar co-op; solo and LAN play are also available.
+Current release: **v0.4.4**. [Download the Windows build](https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/latest). Extract the entire ZIP and run **Howling Rift.exe**. Start Steam for Spacewar co-op; solo and LAN play are also available.
 
-The latest update gives permanent equipment 19 dedicated painted icons with correct names and slot identities. Existing relics retain their stats and equipped positions. See [equipment update notes](GEAR_ART_V042.md), [daily quests and relics](DAILY_RELICS_V040.md), and [enemy progression and level 100](ENEMY_PROGRESSION_V041.md).
+The latest update adds automatic version checking, verified background updates, smoother co-op networking and brighter Vesper projectiles. Permanent equipment uses 19 dedicated painted icons with correct names and slot identities. Existing relics retain their stats and equipped positions. See [equipment update notes](GEAR_ART_V042.md), [daily quests and relics](DAILY_RELICS_V040.md), and [enemy progression and level 100](ENEMY_PROGRESSION_V041.md).
 
 Source includes the Windows GodotSteam extension and its license. Install Godot 4.6.3 or newer to edit and run the project; release builds use Godot 4.7.2. Generated caches, personal saves, test captures and local engine binaries are excluded from version control.
+
+## Updates
+
+Download v0.4.4 once to install the updater. Windows releases then check GitHub automatically, download verified updates in the background, and offer **Restart to update** on the main menu. Updates preserve local progression. You can disable automatic downloads or use **Check for updates** and **Release notes**. Source builds opened in Godot check versions manually and do not overwrite the project. All co-op players must run the same version. See [update and networking notes](UPDATES_NETWORK_V044.md).
 
 ## Play
 

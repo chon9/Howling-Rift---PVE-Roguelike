@@ -43,6 +43,10 @@ var visual_scale: float = 1.0
 var hook_chain: bool = false
 var effect_id: String = ""
 var thresh_mark: bool = false
+func is_vesper_bolt() -> bool:
+	# The effect ID also survives LAN snapshots, whose visual replicas have no source.
+	return effect_id in ["vayne_auto", "vayne_e"]
+
 func configure_presentation() -> void:
 	var hero = is_instance_valid(src) and src.kind == "champion"
 	visual_scale = Constants.CHAMP_ART_SCALE if hero else 1.0
@@ -51,6 +55,8 @@ func configure_presentation() -> void:
 	var width = clampf(size*3.8,22.0,body_height*(0.85 if is_ult else 0.60))
 	if damage_type=="auto" and hero: width=body_height*0.32
 	visual_dimensions=Vector2(width,width*(0.44 if is_ult else 0.58))
+	if is_vesper_bolt():
+		visual_dimensions=Vector2(28,9) if effect_id=="vayne_auto" else Vector2(34,12)
 func visual_rect() -> Rect2:
 	return Rect2(-visual_dimensions*0.5,visual_dimensions)
 func visual_origin() -> Vector2:
@@ -98,6 +104,8 @@ func setup(_src, pos: Vector2, _dir: Vector2, opts: Dictionary) -> void:
 	if is_instance_valid(src) and src.kind == "champion" and ExpansionRoster.KEYS.has(src.hero_key):
 		expansion_art = true
 		art_row = ExpansionRoster.KEYS.find(src.hero_key)
+	if is_instance_valid(src) and src.kind=="champion" and src.hero_key=="vayne" and damage_type=="auto":
+		effect_id="vayne_auto"
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	configure_presentation()
 
@@ -113,6 +121,9 @@ func _draw() -> void:
 			draw_circle(start.lerp(end,float(i)/maxf(1,length)),2,Color(.6,.9,.75,.75))
 		draw_set_transform(Vector2.ZERO)
 	draw_set_transform(visual_origin())
+	if is_vesper_bolt():
+		_draw_vesper_bolt()
+		return
 	if wind_kind >= 0:
 		var frame = int(animation_time*14)%4
 		var art_scale = visual_scale
@@ -199,6 +210,18 @@ func _draw() -> void:
 			draw_circle(Vector2.ZERO, size * 1.7, Color(color.r, color.g, color.b, 0.35))
 			draw_circle(Vector2.ZERO, size, color)
 			draw_circle(Vector2.ZERO, size * 0.5, Color(1, 1, 1, 0.75))
+
+func _draw_vesper_bolt() -> void:
+	var condemn=effect_id=="vayne_e"
+	var tint=Color("ffd889") if condemn else Color("9ee6ff")
+	var tail=-visual_dimensions.x*.85
+	# A compact dark rim reads on snow; the silver core reads on dark terrain.
+	draw_line(Vector2(tail,0),Vector2(visual_dimensions.x*.32,0),Color(.025,.055,.12,.75),5.5,true)
+	draw_line(Vector2(tail,0),Vector2(-2,0),Color(tint.r,tint.g,tint.b,.55),3.5,true)
+	var id="vayne_e" if condemn else "vayne_q"
+	draw_texture_rect_region(KitEffectArt.sheet(id),visual_rect(),KitEffectArt.region(id,int(animation_time*16)%4))
+	draw_line(Vector2(-visual_dimensions.x*.25,0),Vector2(visual_dimensions.x*.38,0),Color("fff4d7") if condemn else Color("effcff"),1.8,true)
+	draw_circle(Vector2(visual_dimensions.x*.38,0),1.5,Color.WHITE)
 
 func update_frame(delta: float) -> void:
 	animation_time += delta

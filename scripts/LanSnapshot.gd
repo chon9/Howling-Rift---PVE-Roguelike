@@ -53,8 +53,7 @@ static func apply(packet: Dictionary, session) -> void:
   for field in CHAMP_FIELDS: c.set(field,state[field])
   if c.dead and not was_dead: AnimatedCorpse.spawn(c)
   c.buffs = restore_buffs(state.buffs)
-  if c.world_pos().distance_to(state.position) > 140: c.global_position = state.position
-  session.positions[c] = state.position
+  session.record_position(c,state.position)
   if c == GameState.player: c.char_name = "You"
   c.name_label.text = c.char_name
   c.visible = not c.dead
@@ -110,13 +109,13 @@ static func reconcile(states: Array, registry: Dictionary, session, type: String
   for field in state:
    if field in ["id","position","subkind"]: continue
    node.set(field,restore_buffs(state[field]) if field == "buffs" else state[field])
-  session.positions[node] = state.position
+  session.record_position(node,state.position)
   if type == "minion": node._sync_bar()
   node.queue_redraw()
  for id in registry.keys():
   if present.has(id): continue
   var node = registry[id]
-  session.positions.erase(node)
+  session.positions.erase(node);session.motion_samples.erase(node)
   GameState.minions.erase(node); GameState.projectiles.erase(node); GameState.aoes.erase(node)
   if type == "minion": AnimatedCorpse.spawn(node)
   node.queue_free()

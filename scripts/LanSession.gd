@@ -1,5 +1,8 @@
 extends Node
 # Host runs all combat and validates commands; guests display replicated state.
+const SNAPSHOT_INTERVAL = 1.0/30.0
+const MAX_EXTRAPOLATION = 0.08
+const STATE_CHUNK_BYTES = 1000
 const PORT = 24567
 var network_port: int = PORT
 var active: bool = false
@@ -12,6 +15,11 @@ var replica_minions: Dictionary = {}
 var replica_projectiles: Dictionary = {}
 var replica_aoes: Dictionary = {}
 var positions: Dictionary = {}
+var motion_samples: Dictionary = {}
+var incoming_frames: Dictionary = {}
+var snapshot_sequence: int = 0
+var last_snapshot_sequence: int = -1
+var snapshot_received_at: float = 0.0
 var state_timer: float = 0.0
 var last_state_time: float = -1.0
 var match_started: bool = false
@@ -42,6 +50,7 @@ func leave() -> void:
  transport = "lan"
  players.clear(); draft_states.clear(); positions.clear()
  replica_minions.clear(); replica_projectiles.clear(); replica_aoes.clear()
+ motion_samples.clear(); incoming_frames.clear(); snapshot_sequence=0; last_snapshot_sequence=-1; snapshot_received_at=0.
  match_started = false
  state_timer = 0; last_state_time = -1
  pending_player.clear()
@@ -175,6 +184,7 @@ func start_match() -> void:
 func _begin_match(config: Dictionary) -> void:
  match_started = true
  draft_states.clear(); last_state_time = -1
+ motion_samples.clear(); incoming_frames.clear(); snapshot_sequence=0; last_snapshot_sequence=-1
  if is_instance_valid(main): main._start_network_match(config)
 func send_command(kind: String, data: Dictionary = {}) -> void:
  if not is_client() or not GameState.started: return
@@ -241,28 +251,80 @@ func choose_draft(c,index: int) -> void:
 func replicate(delta: float) -> void:
  if not is_host() or not GameState.started or not GameState.running: return
  state_timer += delta
- if state_timer < 0.05: return
- state_timer = 0
+ if state_timer < SNAPSHOT_INTERVAL: return
+ state_timer = fmod(state_timer,SNAPSHOT_INTERVAL)
+ snapshot_sequence+=1
  var packet = LanSnapshot.encode()
+ packet.sequence=snapshot_sequence
  for peer in multiplayer.get_peers():
   var state = packet.duplicate()
   state.draft = draft_states.get(peer,{"pending":[],"choices":[],"picked":[]})
-  _state.rpc_id(peer,var_to_bytes(state).compress(FileAccess.COMPRESSION_DEFLATE))
-@rpc("authority","call_remote","reliable",0)
-func _state(compressed: PackedByteArray) -> void:
- if not is_client() or not GameState.started: return
- var packet = bytes_to_var(compressed.decompress_dynamic(4*1024*1024,FileAccess.COMPRESSION_DEFLATE))
- if not packet is Dictionary or packet.time < last_state_time: return
- last_state_time = packet.time
+  var compressed=var_to_bytes(state).compress(FileAccess.COMPRESSION_DEFLATE)
+  var count=ceili(float(compressed.size())/STATE_CHUNK_BYTES)
+  for part in range(count):
+   _state.rpc_id(peer,snapshot_sequence,part,count,compressed.slice(part*STATE_CHUNK_BYTES,mini((part+1)*STATE_CHUNK_BYTES,compressed.size())))
+@rpc("authority","call_remote","unreliable",0)
+func _state(sequence: int,part: int,count: int,chunk: PackedByteArray) -> void:
+ if not is_client() or not GameState.started:return
+ var compressed=assemble_state(sequence,part,count,chunk)
+ if compressed.is_empty():return
+ var packet=bytes_to_var(compressed.decompress_dynamic(4*1024*1024,FileAccess.COMPRESSION_DEFLATE))
+ if packet is Dictionary and int(packet.get("sequence",-1))==sequence:apply_snapshot(packet)
+func assemble_state(sequence: int,part: int,count: int,chunk: PackedByteArray) -> PackedByteArray:
+ if sequence<=last_snapshot_sequence or count<1 or count>256 or part<0 or part>=count or chunk.is_empty() or chunk.size()>STATE_CHUNK_BYTES:return PackedByteArray()
+ var now=Time.get_ticks_usec()/1000000.
+ for old in incoming_frames.keys():
+  if old<=last_snapshot_sequence or now-incoming_frames[old].started>.25:incoming_frames.erase(old)
+ if not incoming_frames.has(sequence):
+  if incoming_frames.size()>=4:
+   var oldest=incoming_frames.keys().min()
+   if sequence<oldest:return PackedByteArray()
+   incoming_frames.erase(oldest)
+  incoming_frames[sequence]={"started":now,"count":count,"parts":{}}
+ var frame=incoming_frames[sequence]
+ if frame.count!=count:return PackedByteArray()
+ frame.parts[part]=chunk
+ if frame.parts.size()!=count:return PackedByteArray()
+ var result=PackedByteArray()
+ for index in range(count):result.append_array(frame.parts[index])
+ incoming_frames.erase(sequence)
+ return result
+func apply_snapshot(packet: Variant) -> bool:
+ if not packet is Dictionary or not packet.has("time") or packet.time<=last_state_time:return false
+ var sequence=int(packet.get("sequence",last_snapshot_sequence+1))
+ if sequence<=last_snapshot_sequence:return false
+ last_state_time=packet.time;last_snapshot_sequence=sequence
+ snapshot_received_at=Time.get_ticks_usec()/1000000.0
  LanSnapshot.apply(packet,self)
+ return true
+func record_position(node,point: Vector2) -> void:
+ var previous=motion_samples.get(node,{})
+ var velocity=Vector2.ZERO
+ var teleported=node.global_position.distance_to(point)>140.
+ if not previous.is_empty():
+  var elapsed=last_state_time-previous.time
+  if elapsed>0.001 and elapsed<.25 and not teleported:
+   velocity=(point-previous.point)/elapsed
+   if velocity.length()>1600.:velocity=Vector2.ZERO
+ if teleported:node.global_position=point
+ motion_samples[node]={"point":point,"time":last_state_time,"velocity":velocity}
+ positions[node]=point
+func smooth_positions(delta: float) -> void:
+ var age=clampf(Time.get_ticks_usec()/1000000.0-snapshot_received_at,0.,MAX_EXTRAPOLATION)
+ for node in positions.keys():
+  if not is_instance_valid(node):positions.erase(node);motion_samples.erase(node);continue
+  var sample=motion_samples.get(node,{})
+  if node is Champion and (node.dead or node.stun>0):sample={}
+  var target=positions[node]+sample.get("velocity",Vector2.ZERO)*age
+  if node is Champion or node is Minion:target=GameState.clamp_walkable(target)
+  var rate=45. if node==GameState.player else 32.
+  node.global_position=node.global_position.lerp(target,1.-exp(-delta*rate))
 func _process(delta: float) -> void:
  if not is_client() or not GameState.started: return
  for c in GameState.champions:
   if c.hit_flash>0:
    c.hit_flash=maxf(0.,c.hit_flash-delta);c.queue_redraw()
- for node in positions.keys():
-  if not is_instance_valid(node): positions.erase(node); continue
-  node.global_position = node.global_position.lerp(positions[node],1-exp(-delta*22))
+ smooth_positions(delta)
 func send_effect(kind: String, actor, point: Vector2, data: Dictionary = {}) -> void:
  if not is_host() or not GameState.started or not GameState.running: return
  _effect.rpc(kind,GameState.champions.find(actor),point,data)

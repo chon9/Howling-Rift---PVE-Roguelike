@@ -127,7 +127,12 @@ func _add_version_label() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var label = Label.new()
 	label.name = "VersionLabel"
-	label.text = "v%s" % str(ProjectSettings.get_setting("application/config/version", "0.1.0"))
+	label.text = "v%s" % GameUpdates.current
+	var refresh_version=func():
+		label.text="v"+GameUpdates.current+(" • Update v"+GameUpdates.latest if GameUpdates.phase in ["available","downloading","ready"] else " • Latest" if GameUpdates.phase=="current" and GameUpdates.latest==GameUpdates.current else "")
+	GameUpdates.changed.connect(refresh_version)
+	label.tree_exiting.connect(func():GameUpdates.changed.disconnect(refresh_version))
+	refresh_version.call()
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	label.add_theme_font_size_override("font_size", 14)
@@ -136,7 +141,7 @@ func _add_version_label() -> void:
 	label.add_theme_constant_override("outline_size", 3)
 	root.add_child(label)
 	label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	label.offset_left = -200
+	label.offset_left = -340
 	label.offset_right = -14
 	label.offset_top = -21
 	label.offset_bottom = -2

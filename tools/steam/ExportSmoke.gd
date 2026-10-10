@@ -14,6 +14,13 @@ func run() -> void:
  check(manifest is Dictionary and not manifest.is_empty(),"animation manifest ships in PCK")
  var game=load("res://scripts/Main.gd").new();root.add_child(game)
  check(game.menu_page=="main","export boots to main menu")
+ var updater=root.get_node("GameUpdates")
+ check(FileAccess.file_exists("res://assets/updater/UpdateGame.ps1"),"exported updater helper ships")
+ check(game.menu.find_child("UpdateAction",true,false)!=null,"exported menu shows update action")
+ updater.auto_download=false;updater.check_latest()
+ var check_deadline=Time.get_ticks_msec()+25000
+ while updater.phase=="checking" and Time.get_ticks_msec()<check_deadline:await process_frame
+ check(updater.checked and not updater.latest.is_empty(),"export checks real GitHub latest release")
  var profile=root.get_node("Progression");var loot=load("res://scripts/GearLoot.gd")
  var rng=RandomNumberGenerator.new();rng.seed=410
  var relic=loot.roll(25,rng,"export_test_relic")

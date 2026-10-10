@@ -13,6 +13,8 @@
 # Test output and machine-local profiles; keep test source
 /tests/*.log
 /tests/*.png
+/tests/*.png.import
+/tests/*.gif.import
 /tests/*.gif
 /tests/*.mp4
 /tests/*.cfg

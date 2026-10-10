@@ -45,6 +45,11 @@ func run() -> void:
   check(state.started and state.champions.size()==6,"exported ARAM runs with all six heroes")
   check(state.player.animator.texture()!=null,"exported action sprites load")
   check(state.player.mp_max>0,"exported Granite has a real mana pool")
+  var hook_owner=state.player
+  var expansion=load("res://scripts/ExpansionKits.gd")
+  check(expansion.cast(hook_owner,"thresh_q",hook_owner.world_pos()+Vector2(200,0)),"export can produce a hook")
+  var hook_state=load("res://scripts/LanSnapshot.gd").encode().projectiles.back()
+  check(hook_state.source.kind=="champion" and hook_state.hook_chain and hook_state.damage_type=="magic","exported hook snapshot carries its caster and skill presentation")
   for stat in profile.bonuses():check(is_equal_approx(state.player.permanent_bonus.get(stat,0.),profile.bonuses()[stat]),"exported co-op starts with equipped stat: "+stat)
   check(load("res://assets/vfx/expansion-projectiles-v1.png")!=null,"exported new projectile sheet loads")
   var kit_art=load("res://scripts/KitEffectArt.gd")

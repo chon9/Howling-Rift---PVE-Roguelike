@@ -30,7 +30,7 @@ func _ready() -> void:
  var packet=LanSnapshot.encode().projectiles.back()
  var replica=game.ProjectileS.new();game.world_root.add_child(replica)
  for field in packet:
-  if field not in ["id","position"]:replica.set(field,packet[field])
+  if field not in ["id","position","source"]:replica.set(field,packet[field])
  check(replica.src==null and replica.is_vesper_bolt() and replica.visual_dimensions==condemn.visual_dimensions,"source-free co-op replica has identical bolt presentation")
  replica.queue_free()
  for p in GameState.projectiles.duplicate():p._destroy()

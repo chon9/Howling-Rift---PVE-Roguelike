@@ -109,11 +109,17 @@ func setup(_src, pos: Vector2, _dir: Vector2, opts: Dictionary) -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	configure_presentation()
 
+func hook_world_segment() -> PackedVector2Array:
+	if not hook_chain or not is_instance_valid(src):return PackedVector2Array()
+	var height=Vector2(0,visual_height)
+	return PackedVector2Array([src.world_pos()-height,global_position-height])
+
 func _draw() -> void:
-	if hook_chain and is_instance_valid(src):
+	var chain=hook_world_segment()
+	if chain.size()==2:
 		draw_set_transform(Vector2.ZERO,-rotation)
-		var start=src.world_pos()-global_position-Vector2(0,visual_height)
-		var end=Vector2(0,-visual_height)
+		var start=chain[0]-global_position
+		var end=chain[1]-global_position
 		draw_line(start,end,Color(.1,.8,.65,.25),5,true)
 		draw_line(start,end,Color(.62,.95,.8,.8),1.8,true)
 		var length=start.distance_to(end)

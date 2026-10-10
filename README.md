@@ -3,9 +3,9 @@
 An ARAM-only, LoL-inspired 3v3 PvE game built with Godot 4. Arena mode has been removed.
 
 
-Current release: **v0.4.4**. [Download the Windows build](https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/latest). Extract the entire ZIP and run **Howling Rift.exe**. Start Steam for Spacewar co-op; solo and LAN play are also available.
+Current release: **v0.4.5**. [Download the Windows build](https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/latest). Extract the entire ZIP and run **Howling Rift.exe**. Start Steam for Spacewar co-op; solo and LAN play are also available.
 
-The latest update adds automatic version checking, verified background updates, smoother co-op networking and brighter Vesper projectiles. Permanent equipment uses 19 dedicated painted icons with correct names and slot identities. Existing relics retain their stats and equipped positions. See [equipment update notes](GEAR_ART_V042.md), [daily quests and relics](DAILY_RELICS_V040.md), and [enemy progression and level 100](ENEMY_PROGRESSION_V041.md).
+The latest update restores Thresh’s connecting hook chain in co-op. See [multiplayer hook fix](HOOK_COOP_V045.md). Includes automatic version checking, verified background updates, smoother co-op networking and brighter Vesper projectiles. Permanent equipment uses 19 dedicated painted icons with correct names and slot identities. Existing relics retain their stats and equipped positions. See [equipment update notes](GEAR_ART_V042.md), [daily quests and relics](DAILY_RELICS_V040.md), and [enemy progression and level 100](ENEMY_PROGRESSION_V041.md).
 
 Source includes the Windows GodotSteam extension and its license. Install Godot 4.6.3 or newer to edit and run the project; release builds use Godot 4.7.2. Generated caches, personal saves, test captures and local engine binaries are excluded from version control.
 

@@ -237,9 +237,10 @@ func _make_champion_card(hero_key: String) -> PanelContainer:
 	v.alignment = BoxContainer.ALIGNMENT_BEGIN
 	card.add_child(v)
 
-	# Portrait circle
+	# All thirty portraits share the same clipped square and external frame.
 	var portrait = Control.new()
-	portrait.custom_minimum_size = Vector2(0, 90)
+	portrait.custom_minimum_size = Vector2(0, 94)
+	portrait.clip_contents=true
 	v.add_child(portrait)
 	var pdraw = _CardPortraitDraw.new()
 	pdraw.hero_color = H.color
@@ -268,6 +269,7 @@ func _make_champion_card(hero_key: String) -> PanelContainer:
 	hpM.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 	hpM.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hpM)
+	var passive=Label.new();passive.text="P • "+HeroPassives.DATA[hero_key][0];passive.tooltip_text=HeroPassives.description(hero_key);passive.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;passive.add_theme_font_size_override("font_size",12);passive.add_theme_color_override("font_color",Color("d8bb83"));v.add_child(passive)
 
 	# Skills row
 	var sh = HBoxContainer.new()
@@ -294,7 +296,7 @@ func _make_champion_card(hero_key: String) -> PanelContainer:
 
 func _ignore_card_input(node: Node) -> void:
 	for child in node.get_children():
-		if child is Control: child.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if child is Control: child.mouse_filter = Control.MOUSE_FILTER_PASS if not child.tooltip_text.is_empty() else Control.MOUSE_FILTER_IGNORE
 		_ignore_card_input(child)
 
 func _select_hero(hero_key: String) -> void:
@@ -477,11 +479,13 @@ class _CardPortraitDraw extends Control:
 	var texture: Texture2D
 	func _draw():
 		var c = size * 0.5
-		draw_circle(c, 50, Color(hero_color.r, hero_color.g, hero_color.b, 0.1))
-		draw_arc(c, 50, 0, TAU, 48, Color(hero_color.r, hero_color.g, hero_color.b, 0.35), 1, true)
+		var frame=Rect2(c-Vector2(44,44),Vector2(88,88))
+		draw_rect(frame,Color("101c2b"))
 		if texture != null:
 			texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-			draw_texture_rect_region(texture, Rect2(c + Vector2(-45, -45), Vector2(90, 90)), Rect2(0, 0, texture.get_width(), texture.get_width()))
+			draw_texture_rect(texture,frame.grow(-3),false)
+		draw_rect(frame,Color("bd985b"),false,2.,true)
+		draw_rect(frame.grow(-2),Color("493e2a"),false,1.,true)
 
 func _start_game(hero_key: String) -> void:
 	if GameState.started: return
@@ -846,6 +850,7 @@ func _respawn_champion(c) -> void:
 	c.stop_actions()
 	c.is_dashing = false
 	c.global_position = Constants.FOUNT_B if c.team == BLUE else Constants.FOUNT_R
+	HeroPassives.respawn(c)
 	if c == GameState.player:
 		hud.get_node("HudRoot").hide_death_overlay()
 
@@ -855,12 +860,16 @@ func _respawn_champion(c) -> void:
 func spawn_projectile(src, pos: Vector2, dir: Vector2, opts: Dictionary) -> void:
 	var p = ProjectileS.new()
 	world_root.add_child(p)
+	if src.kind=="champion":
+		opts=opts.duplicate();opts["spell_id"]=opts.get("spell_id",opts.get("effect_id",src.active_cast_id));opts["stun"]=maxf(opts.get("stun",0.),src.cast_passive_stun)
 	p.setup(src, pos, dir, opts)
 	GameState.projectiles.append(p)
 
 func spawn_aoe(src, pos: Vector2, opts: Dictionary) -> void:
 	var a = AoES.new()
 	world_root.add_child(a)
+	if src.kind=="champion":
+		opts=opts.duplicate();opts["spell_id"]=opts.get("spell_id",opts.get("effect_id",src.active_cast_id));opts["stun"]=maxf(opts.get("stun",0.),src.cast_passive_stun)
 	a.setup(src, pos, opts)
 	GameState.aoes.append(a)
 
@@ -945,7 +954,7 @@ func camera_flash(duration: float, color: Color) -> void:
 # =============================================================================
 # COMBAT RESOLUTION
 # =============================================================================
-func deal_damage(src, target, dmg: float, dmg_type: String) -> void:
+func deal_damage(src, target, dmg: float, dmg_type: String, spell_id: String = "") -> void:
 	if LanSession.is_client(): return
 	if typeof(src) == TYPE_OBJECT and not is_instance_valid(src): src = null
 	if target == null or target.dead: return
@@ -958,8 +967,9 @@ func deal_damage(src, target, dmg: float, dmg_type: String) -> void:
 			dmg += mark.bonus
 			target.buffs.erase("flux_mark")
 	if GameState.paused or not GameState.running: return
-	BrushVision.reveal(target,1.25)
-	BrushVision.reveal(src)
+	if dmg_type in ["auto","skill","magic","physical"]:
+		BrushVision.reveal(target,1.25)
+		BrushVision.reveal(src)
 	# Preserve the raw rocket payload; each victim applies difficulty/armor once.
 	var rocket_splash_damage = dmg*0.35
 	# Repeated hits use a bounded coefficient, rather than 100% AP every tick.
@@ -995,10 +1005,13 @@ func deal_damage(src, target, dmg: float, dmg_type: String) -> void:
 		TankADCombat.lifeline(target,"legacy_magic" if ExpansionCombat.is_magic(src,dmg_type) else dmg_type,health_after)
 	if dmg_type != "mark" and "buffs" in target and target.buffs.has("death_mark") and target.buffs.death_mark.src == src:
 		target.buffs.death_mark.stored += dmg
+	HeroPassives.before_damage(src,target,dmg_type,dmg)
+	var damage_before_shield=dmg
 	# Shield absorb
 	if "shield" in target and target.shield > 0:
 		var absorb = min(target.shield, dmg)
 		TankADCombat.consume_shield(target,absorb)
+		if target.kind=="champion" and target.hero_key=="malphite":target.passive_state.granite=maxf(0.,target.passive_state.get("granite",0.)-absorb)
 		target.shield -= absorb
 		dmg -= absorb
 		floating_text(target.world_pos() + Vector2(0, -20),
@@ -1053,15 +1066,15 @@ func deal_damage(src, target, dmg: float, dmg_type: String) -> void:
 	if "buffs" in target and target.buffs.has("molten") and \
 			src != null and ("kind" in src) and src.kind == "champion" and dmg_type == "auto":
 		deal_damage(target, src, target.buffs["molten"]["reflect"], "reflect")
+	HeroPassives.on_damage(src,target,dmg_type,damage_before_shield,spell_id if not spell_id.is_empty() else src.active_cast_id if is_instance_valid(src) and src.kind=="champion" else "",dmg)
 	ExpansionCombat.after_hit(src,target,dmg_type)
 	ExpansionCombat.lifeline(target,dmg_type,src)
 	if target.hp <= 0:
-		if is_instance_valid(src) and src.kind=="champion" and src.hero_key=="veigar" and dmg_type in ["magic","skill"] and not target.dead and target.kind!="structure":
-			src.run_bonus.bonus_ap=src.run_bonus.get("bonus_ap",0.)+2.;src._apply_items()
 		_handle_death(src, target)
 
 func _handle_death(killer, victim) -> void:
 	if victim.dead: return
+	HeroPassives.on_death(killer,victim)
 	if victim.kind == "champion": play_sfx("death" if victim == GameState.player else "kill", victim)
 	elif victim.kind == "structure": play_sfx("kill", victim)
 	if victim.kind in ["champion","minion"]:Roster12Combat.on_death(victim)
@@ -1189,6 +1202,7 @@ func cast_summoner(c, idx: int) -> void:
 				if ally == null or hero.hp / hero.hp_max < ally.hp / ally.hp_max: ally = hero
 			if ally != null:
 				ally.hp = minf(ally.hp_max, ally.hp + amount * ExpansionCombat.healing_multiplier(ally))
+				HeroPassives.support(c,ally)
 				ally.buffs["haste"] = {"time":2.0,"mult":1.25}
 			floating_text(c.world_pos(), "+%d HEAL" % amount, Color("6fffa4"))
 			spawn_spell_burst(c, c.world_pos(), 45)

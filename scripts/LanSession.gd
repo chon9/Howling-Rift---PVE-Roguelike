@@ -325,6 +325,7 @@ func _process(delta: float) -> void:
   if c.hit_flash>0:
    c.hit_flash=maxf(0.,c.hit_flash-delta);c.queue_redraw()
  smooth_positions(delta)
+ BrushVision.update_presentation()
 func send_effect(kind: String, actor, point: Vector2, data: Dictionary = {}) -> void:
  if not is_host() or not GameState.started or not GameState.running: return
  _effect.rpc(kind,GameState.champions.find(actor),point,data)

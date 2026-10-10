@@ -58,6 +58,10 @@ var attack_move: bool = false
 var attack_move_destination: Vector2 = Vector2.ZERO
 var facing: Vector2 = Vector2(1, 0)
 var buffs: Dictionary = {}
+var passive_state: Dictionary = {}
+var active_cast_id: String = ""
+var cast_passive_stun: float = 0.
+var last_cast_point: Vector2
 var dash_target: Vector2 = Vector2.ZERO
 var is_dashing: bool = false
 var dash_speed: float = 1400.0
@@ -117,6 +121,7 @@ var dive_target = null
 var dive_until: float = -1.0
 var dive_entered: bool = false
 var brush_revealed_until: float = -1.0
+var vision_teams: Array = [true,true]
 var dodge_noticed: Dictionary = {}
 var dodge_until: float = -1.0
 var dodge_destination: Vector2 = Vector2.ZERO
@@ -177,6 +182,7 @@ func setup(_team: int, _hero_key: String, _is_bot: bool, _name: String) -> void:
 	_apply_items()
 	hp = hp_max
 	mp = mp_max
+	HeroPassives.initialize(self)
 	_sync_bars()
 	# Level 1: 1 skill point. Bots spend immediately via priority; player chooses.
 	skill_points = 1
@@ -292,7 +298,7 @@ func _draw() -> void:
 		ActionSpriteArt.apply_frame_mask(material,animator.key,pose.action,pose.frame)
 		material.set_shader_parameter("hit_whiten",clampf(hit_flash/.14,0.,1.)*.7)
 		draw_set_transform(Vector2.ZERO,0,Vector2(-1,1) if animator.is_flipped() else Vector2.ONE)
-		draw_texture_rect_region(animator.texture(),animator.draw_rect(),animator.source_rect(),Color(1.3,1.15,1.08) if hit_flash>0 else Color.WHITE)
+		draw_texture_rect_region(animator.texture(),Rect2(animator.draw_rect().position-Vector2(0,HeroControl.lift(self)),animator.draw_rect().size),animator.source_rect(),Color(1.3,1.15,1.08) if hit_flash>0 else Color.WHITE)
 		draw_set_transform(Vector2.ZERO)
 
 	if buffs.has("wind_wall"):
@@ -308,7 +314,7 @@ func _draw() -> void:
 	if buffs.has("shadow"):
 		var offset = buffs.shadow.point-global_position
 		draw_set_transform(offset,0,Vector2(-1,1) if animator.is_flipped() else Vector2.ONE)
-		draw_texture_rect_region(animator.texture(),animator.draw_rect(),animator.source_rect(),Color(0.6,0.3,0.9,0.5))
+		draw_texture_rect_region(animator.texture(),Rect2(animator.draw_rect().position-Vector2(0,HeroControl.lift(self)),animator.draw_rect().size),animator.source_rect(),Color(0.6,0.3,0.9,0.5))
 		draw_set_transform(Vector2.ZERO)
 	if buffs.has("divine"):
 		draw_arc(Vector2(0,-28)*Constants.CHAMP_ART_SCALE,60*Constants.CHAMP_ART_SCALE,0,TAU,48,Color("ffeaaa"),5,true)
@@ -409,11 +415,11 @@ func _recompute_stats() -> void:
 	hp_max = hero["hp"] + hero["hp_per_lv"] * lv_ + bonus_hp
 	hp_max *= difficulty_stats.get("health", 1.0)
 	if buffs.has("dominion"):hp_max+=buffs.dominion.health
-	mp_max = hero["mp"] + hero["mp_per_lv"] * lv_ + bonus_mp
+	mp_max = 200. if hero_key in ["leesin","zed"] else hero["mp"] + hero["mp_per_lv"] * lv_ + bonus_mp
 	base_mr = hero.get("mr", 35.0 if auto_type == "melee" else 30.0) + 1.25 * lv_
 	ad = hero["ad"] + hero["ad_per_lv"] * lv_ + bonus_ad
 	hp_regen = hero["hp_regen"] + hero["hp_regen_per_lv"] * lv_ + bonus_hp_regen
-	mp_regen = (hero["mp_regen"] + hero["mp_regen_per_lv"] * lv_) * 1.25
+	mp_regen = 10. if hero_key in ["leesin","zed"] else (hero["mp_regen"] + hero["mp_regen_per_lv"] * lv_) * 1.25
 	if prev_hp > 0:
 		hp = min(hp_max, hp + (hp_max - prev_hp))
 	if prev_mp > 0:
@@ -461,6 +467,7 @@ func _apply_items() -> void:
 	bonus_cdr = min(bonus_cdr, 0.4)
 	if inventory.has("archangel"): bonus_ap += (hero.mp + hero.mp_per_lv * (level - 1) + bonus_mp) * 0.025
 	if inventory.has("rabadon"): bonus_ap *= 1.3
+	if hero_key=="syndra" and passive_state.get("transcendent_ap",false):bonus_ap*=1.15
 	_recompute_stats()
 	if dead: hp = 0
 
@@ -554,6 +561,7 @@ func try_level_skill(idx: int) -> bool:
 		return true
 	if not can_level_skill(idx): return false
 	skill_ranks[idx] += 1
+	if hero_key=="vayne" and idx==1:ExpansionKits.tick(self,0.)
 	skill_points -= 1
 	_recompute_stats()
 	get_tree().call_group("game_main", "floating_text",
@@ -579,6 +587,7 @@ func grant_xp(amount: float) -> void:
 	while level < Constants.MAX_LEVEL and xp >= Constants.xp_to_level(level):
 		xp -= Constants.xp_to_level(level)
 		level += 1
+		HeroPassives.on_level(self)
 		if hero_key == "kayle" and level >= 6:
 			atk_range = 350
 			auto_type = "ranged"
@@ -602,13 +611,13 @@ func effective_move_speed() -> float:
 	if buffs.has("ghost"): m *= buffs.ghost.mult
 	if inventory.has("force_nature") and buffs.has("nature_guard"): m *= 1.08
 	if buffs.has("slow"): m *= (1.0 - buffs["slow"]["pct"])
-	return m
+	return m * HeroPassives.move_speed(self)
 
 func effective_attack_range() -> float:
-	return atk_range + (100 if buffs.has("rockets") else 0) + (40 if buffs.has("exile") else 0)
+	return HeroPassives.attack_range(self,attack_target) + (100 if buffs.has("rockets") else 0) + (40 if buffs.has("exile") else 0)
 
 func effective_atk_spd() -> float:
-	var m = atk_spd * (1.0 + bonus_as) * difficulty_stats.get("attack_speed", 1.0)
+	var m = atk_spd * (1.0 + bonus_as) * difficulty_stats.get("attack_speed", 1.0) * HeroPassives.attack_speed(self)
 	if buffs.has("roster_as"): m *= buffs.roster_as.mult
 	if buffs.has("focus"): m *= 1.4
 	if buffs.has("cripple"): m *= .8
@@ -630,6 +639,7 @@ func try_cast_skill(idx: int, pt: Vector2) -> bool:
 	var look = (pt-world_pos()).normalized()
 	if NewHeroKits.recast(self,idx,pt):
 		if look.length_squared()>0.01: facing = look
+		HeroPassives.on_cast(self,idx)
 		BrushVision.reveal(self)
 		animator.start(["q","w","e","r"][idx],0.3)
 		if hero_key == "leesin" and idx == 0: anim_from=3
@@ -640,9 +650,10 @@ func try_cast_skill(idx: int, pt: Vector2) -> bool:
 			global_position, "Not learned", Color(1,1,0.3), false); return false
 	if skill_cds[idx] > 0: return false
 	var sk = hero["skills"][idx]
+	if sk.kind=="passive":return false
 	if mp < sk["cost"]:
 		get_tree().call_group("game_main", "floating_text",
-			global_position, "No mana", Color(0.3,0.7,1.0), false); return false
+			global_position, "No energy" if hero_key in ["leesin","zed"] else "No mana", Color(0.3,0.7,1.0), false); return false
 	var cast_pt = pt
 	# Range clamp
 	if sk["range"] > 0:
@@ -650,8 +661,11 @@ func try_cast_skill(idx: int, pt: Vector2) -> bool:
 		if d > sk["range"]:
 			cast_pt = global_position + (pt - global_position).normalized() * sk["range"]
 	# Dispatch
+	active_cast_id=sk.cast_id;last_cast_point=cast_pt;cast_passive_stun=HeroPassives.prepare_cast(self,idx)
 	var ok = _dispatch_cast(sk["cast_id"], cast_pt)
+	active_cast_id="";cast_passive_stun=0.
 	if not ok: return false
+	HeroPassives.on_cast(self,idx)
 	BrushVision.reveal(self)
 	if sk.range>0 and look.length_squared()>0.01: facing = look
 	animator.start(["q","w","e","r"][idx],0.42 if idx==3 else 0.3)
@@ -659,6 +673,8 @@ func try_cast_skill(idx: int, pt: Vector2) -> bool:
 	if inventory.has("sheen") or inventory.has("trinity") or inventory.has("essence_reaver"): buffs["spellblade"] = {"time":5.0}
 	mp -= sk["cost"]
 	skill_cds[idx] = effective_cd(sk["cd"])
+	if hero_key=="syndra" and idx==0 and passive_state.get("splinters",0)>=40:skill_cds[0]=0. if passive_state.get("q_charges",0)>0 else passive_state.q_recharge
+	if idx==3 and passive_state.get("reset_r",false):skill_cds[3]=0.;passive_state.erase("reset_r")
 	if recall_time >= 0: recall_time = -1.0
 	get_tree().call_group("game_main", "play_sfx", "ultimate" if idx == 3 else "spell", self)
 	if hero_key != "yasuo" and not ExpansionRoster.KEYS.has(hero_key) and not hero_key in RosterExpansion12.KEYS: get_tree().call_group("game_main", "spawn_spell_burst", self, global_position, 45.0 if idx != 3 else 70.0)
@@ -727,6 +743,7 @@ func _lux_w() -> void:
 	for ally in GameState.champions:
 		if ally.team == team and not ally.dead and ally.world_pos().distance_to(global_position) <= 250:
 			ally.shield = max(ally.shield, 60 + 35 * rank(1) + bonus_ap * 0.5)
+			HeroPassives.support(self,ally)
 	_spawn_aoe(global_position, 250, 0, Color("ffe9a5"), 0.45)
 
 func _lux_e(pt: Vector2) -> void:
@@ -778,11 +795,13 @@ func _ashe_q() -> void:
 func _ashe_w(pt: Vector2) -> void:
 	var base_ang = (pt - global_position).angle()
 	var dmg = 20.0 + 20.0 * rank(1) + ad * 0.6
+	var volley_hits: Array=[]
 	for i in range(-4, 5):
 		var a = base_ang + i * 0.09
 		var dir = Vector2(cos(a), sin(a))
 		_spawn_projectile(dir, dmg, 620, Color(0.533, 0.867, 1.0), 7, 0, 1.5,
 			0.0, 0.3, 2.0, true, 0.0, null, false, false, "arrow")
+		if not GameState.projectiles.is_empty():GameState.projectiles.back().hit_set=volley_hits
 
 func _ashe_e(pt: Vector2) -> void:
 	var d = min(300.0, global_position.distance_to(pt))
@@ -866,6 +885,7 @@ func update_frame(delta: float) -> void:
 	ExpansionKits.tick(self,delta)
 	ExpansionCombat.tick(self,delta)
 	Roster12Combat.tick(self,delta)
+	HeroPassives.tick(self,delta)
 	if dead:return
 	# Buff decay
 	var expired := []
@@ -877,6 +897,7 @@ func update_frame(delta: float) -> void:
 		var value = buffs[k].duplicate()
 		buffs.erase(k)
 		NewHeroKits.expire(self,k,value)
+		HeroPassives.expire_shield(self,k,value)
 
 	# Ignite DoT
 	if buffs.has("ignite"):
@@ -889,6 +910,7 @@ func update_frame(delta: float) -> void:
 	# Cooldowns
 	if dead: return
 	stun = max(0.0, stun - delta * (1.0 / .75 if inventory.has("mercury_treads") else 1.0))
+	if buffs.has("airborne"):stun=maxf(stun,buffs.airborne.time)
 	if attack_pulse > 0: attack_pulse = max(0.0, attack_pulse - delta * 10.0)
 
 	# Recall
@@ -1056,7 +1078,7 @@ func _sync_bars() -> void:
 	name_label.visible = not dead
 
 func auto_attack_reach(target) -> float:
-	return effective_attack_range()+target.size*0.3
+	return HeroPassives.attack_range(self,target)+(100 if buffs.has("rockets") else 0)+(40 if buffs.has("exile") else 0)+target.size*0.3
 
 func cancel_auto() -> void:
 	if queued_auto_target != null:
@@ -1070,7 +1092,8 @@ func _perform_auto(target) -> void:
 	BrushVision.reveal(self)
 	animator.release_attack(clampf(0.2/effective_atk_spd(),0.08,0.24))
 	get_tree().call_group("game_main", "play_sfx", "attack", self)
-	var dmg = ad + Roster12Combat.before_auto(self,target)
+	var frost_slow=(.2+.01*mini(level,18))*(2. if randf()<HeroPassives.critical_chance(self) else 1.) if hero_key=="ashe" else 0.
+	var dmg = ad + Roster12Combat.before_auto(self,target) + HeroPassives.auto_bonus(self,target)
 	if buffs.has("hunt"):dmg+=buffs.hunt.damage
 	if buffs.has("empowered"):
 		dmg+=buffs.empowered.damage
@@ -1083,7 +1106,7 @@ func _perform_auto(target) -> void:
 		dmg += TankADCombat.spellblade_damage(self)
 		if inventory.has("essence_reaver"): mp = minf(mp_max,mp+mp_max*.08)
 		buffs.erase("spellblade")
-	if randf() < bonus_crit: dmg *= 1.75 + bonus_crit_damage
+	if hero_key!="ashe" and randf() < HeroPassives.critical_chance(self): dmg *= (1.75 + bonus_crit_damage)*(.9 if hero_key=="yasuo" else 1.)
 	if buffs.has("decisive") and not buffs["decisive"]["used"]:
 		if "buffs" in target: target.buffs["silence"] = {"time": 1.5}
 		dmg += buffs["decisive"]["bonus"]
@@ -1096,13 +1119,14 @@ func _perform_auto(target) -> void:
 	else:
 		var ang = (target.world_pos() - global_position).angle()
 		var shots = 3 if buffs.has("focus") else 1
+		if shots>1:dmg=dmg*(1.05+.05*rank(0))/shots
 		var auto_shape = "arrow" if hero_key == "ashe" else ("fireball" if hero_key == "annie" else "orb")
 		for i in range(shots):
 			var spread = (i - (shots - 1) * 0.5) * 0.08
 			var a = ang + spread
 			_spawn_projectile(Vector2(cos(a), sin(a)), dmg, 700,
 				hero["auto_color"], 7, 0, 2.0, 0.0,
-				0.15 if hero_key == "ashe" else 0.0, 2.0, false, 0.0, target,
+				frost_slow, 2.0, false, 0.0, target,
 				false, false, auto_shape, "auto")
 
 # ============== Bot AI ==============
@@ -1430,6 +1454,7 @@ func stop_actions() -> void:
 func tick_cooldowns(delta: float) -> void:
 	for item in item_cds: item_cds[item] = maxf(0, item_cds[item] - delta)
 	for i in range(4): skill_cds[i] = maxf(0.0, skill_cds[i] - delta)
+	HeroPassives.cooldowns(self,delta)
 	for i in range(2): summoner_cds[i] = maxf(0.0, summoner_cds[i] - delta)
 	atk_cd = maxf(0.0, atk_cd - delta)
 

@@ -370,6 +370,7 @@ func _build_bottom_hud() -> void:
 	player_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	player_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	action_content.add_child(player_portrait)
+	var passive_hint=_hud_label(action_content,"P • PASSIVE",Vector2(125,113),Vector2(100,17),10);passive_hint.name="PassiveCounter";passive_hint.clip_text=true;passive_hint.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS;passive_hint.add_theme_color_override("font_color",Color("d8bb83"))
 	player_level = _hud_label(action_content,"3",Vector2(187,87),Vector2(26,24),18)
 	player_level.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	player_level.add_theme_color_override("font_color",Color("f5d78a"))
@@ -769,6 +770,8 @@ func build_for_player(c) -> void:
 	portrait.atlas = c.champion_texture
 	portrait.region = Rect2(0, 0, c.champion_texture.get_width(), c.champion_texture.get_width())
 	player_portrait.texture = portrait
+	player_portrait.mouse_filter=Control.MOUSE_FILTER_STOP
+	if not player_portrait.mouse_entered.is_connected(show_passive_description):player_portrait.mouse_entered.connect(show_passive_description);player_portrait.mouse_exited.connect(hide_skill_description)
 	difficulty_label.text = "N%d" % GameState.difficulty
 	player_name.text = c.hero.name
 	# Configure SkillSlot widgets with hero data and wire interactions
@@ -821,10 +824,14 @@ func _notification(what: int) -> void:
 
 # ======================= Refresh (called each frame) =======================
 func refresh(delta: float) -> void:
+	if hovered_skill==-2 and player!=null:tooltip_label.text=HeroPassives.description(player.hero_key,player);_position_skill_tooltip()
 	if hovered_skill >= 0 and player != null:
 		tooltip_label.text = ChampionData.skill_description(player.hero_key, hovered_skill, player)
 		_position_skill_tooltip()
 	if player == null: return
+	var counter=action_content.get_node_or_null("PassiveCounter")
+	if counter!=null:
+		var text=HeroPassives.state_text(player);counter.text="P • "+text.split(" • ")[0] if text!="Active from level 1" else "P • PASSIVE"
 	announcement_timer = maxf(0,announcement_timer-delta)
 	if announcement_timer <= 0: announcement.hide()
 	if is_instance_valid(scoreboard) and scoreboard.visible: scoreboard.refresh()
@@ -869,7 +876,7 @@ func refresh(delta: float) -> void:
 	elif player.mp_max > 0:
 		mp_bar.max_value = player.mp_max
 		mp_bar.value = player.mp
-		mp_text.text = "%d / %d" % [int(ceil(player.mp)), int(ceil(player.mp_max))]
+		mp_text.text = ("Energy " if player.hero_key in ["leesin","zed"] else "")+"%d / %d" % [int(ceil(player.mp)), int(ceil(player.mp_max))]
 	else:
 		mp_bar.value = 0
 		mp_text.text = "— NO MANA —"
@@ -1013,3 +1020,7 @@ func toggle_shop() -> void:
 func close_shop() -> void:
 	shop_open = false
 	shop_panel.visible = false
+
+func show_passive_description() -> void:
+	if player==null:return
+	hovered_skill=-2;tooltip_label.text=HeroPassives.description(player.hero_key,player);tooltip_panel.show();_position_skill_tooltip()

@@ -22,7 +22,7 @@ func setup(src, direction: Vector2, reach: float, half_width: float, damage: flo
 		var along = offset.dot(direction)
 		var across = abs(offset.cross(direction))
 		if along >= 0 and along <= length and across <= width + target.size * 0.5:
-			get_tree().call_group("game_main", "deal_damage", src, target, damage, "skill")
+			get_tree().call_group("game_main", "deal_damage", src, target, damage, "skill",src.active_cast_id)
 
 func _process(delta: float) -> void:
 	if GameState.paused: return

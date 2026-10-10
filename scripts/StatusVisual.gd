@@ -22,7 +22,7 @@ func refresh() -> void:
  var next_shield = maxf(0, unit.shield) if unit.kind == "champion" and not unit.dead else 0.0
  if next_shield != shield_amount: shield_pulse = 0.3 if next_shield > shield_amount else 0.18
  shield_amount = next_shield
- visible = stun_remaining>0 or ignite_remaining>0 or shield_amount>0 or ["vital","grand_challenge","rifle_mark","artillery","arcanopulse","parry"].any(func(k):return unit.buffs.has(k))
+ visible = stun_remaining>0 or ignite_remaining>0 or shield_amount>0 or ["grand_challenge","rifle_mark","artillery","arcanopulse","parry","roster_attack"].any(func(k):return unit.buffs.has(k)) or unit.buffs.keys().any(func(k):return k.begins_with("vital_"))
  queue_redraw()
 
 func _process(delta: float) -> void:
@@ -90,11 +90,12 @@ func _draw() -> void:
   var burn_y = head_y-30 if stun_remaining>0 else head_y
   _badge("IGNITE %.1fs" % ignite_remaining,burn_y,Color("ff8640"))
  if stun_remaining>0:
-  _badge("STUNNED %.1fs" % stun_remaining,head_y,Color("ba8bff"),true)
+  _badge(("AIRBORNE" if unit.buffs.has("airborne") else "STUNNED")+" %.1fs" % stun_remaining,head_y-HeroControl.lift(unit),Color("ba8bff"),not unit.buffs.has("airborne"))
 
 func _draw_roster_status() -> void:
- if unit.buffs.has("vital") or unit.buffs.has("grand_challenge"):
-  var challenge=unit.buffs.has("grand_challenge");var b=unit.buffs.grand_challenge if challenge else unit.buffs.vital
+ var vital_key="vital_"+str(GameState.champions.find(GameState.player)) if is_instance_valid(GameState.player) else ""
+ if unit.buffs.has(vital_key) or unit.buffs.has("grand_challenge"):
+  var challenge=unit.buffs.has("grand_challenge");var b=unit.buffs.grand_challenge if challenge else unit.buffs[vital_key]
   for side in range(4):
    if challenge and int(b.mask)&(1<<side):continue
    if not challenge and side!=int(b.side):continue
@@ -104,6 +105,7 @@ func _draw_roster_status() -> void:
  if unit.buffs.has("rifle_mark"):draw_arc(Vector2(0,-45),22,0,TAU,32,Color("e6b4ff"),2.5,true)
  if unit.kind!="champion":return
  var y=-Constants.CHAMP_ART_HEIGHT-90
- if unit.buffs.has("artillery"):_badge("ARTILLERY %d • %.1fs" % [unit.buffs.artillery.shots,unit.buffs.artillery.time],y,Color("8adfff"))
+ if unit.hero_key=="xinzhao" and unit.buffs.has("roster_attack"):_badge("Q • %d HITS • %.1fs" % [unit.buffs.roster_attack.hits,unit.buffs.roster_attack.time],y,Color("edc895"))
+ elif unit.buffs.has("artillery"):_badge("ARTILLERY %d • %.1fs" % [unit.buffs.artillery.shots,unit.buffs.artillery.time],y,Color("8adfff"))
  elif unit.buffs.has("arcanopulse"):_badge("CHARGING • Q TO FIRE",y,Color("8adfff"))
  elif unit.buffs.has("parry"):_badge("PARRY %.1fs" % unit.buffs.parry.time,y,Color("b4d9ff"))

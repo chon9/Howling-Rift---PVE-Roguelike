@@ -35,13 +35,13 @@ static func control(u,seconds: float,slow: float=0.) -> void:
 static func physical(c) -> bool:
  return c.hero_key in ["renekton","xinzhao","riven","fiora","caitlyn","lucian","sivir"]
 static func hit(c,u,id: String,mult: float=1.) -> void:
- NewHeroKits.hit(c,u,amount(c,id)*mult,"physical" if physical(c) else "magic")
+ c.get_tree().call_group("game_main","deal_damage",c,u,amount(c,id)*mult,"magic" if id=="xinzhao_e" or not physical(c) else "physical",id)
 static func visual(c,point: Vector2,id: String,radius: float=90.,duration: float=.4,opts: Dictionary={}) -> void:
  opts=opts.duplicate();opts.merge({"effect_id":id,"duration":duration},false);NewHeroKits.area(c,point,radius,0,opts)
 static func area(c,point: Vector2,id: String,radius: float,opts: Dictionary={}) -> void:
- opts=opts.duplicate();opts.merge({"effect_id":id,"damage_type":"physical" if physical(c) else "magic"},false);NewHeroKits.area(c,point,radius,amount(c,id),opts)
+ opts=opts.duplicate();opts.merge({"effect_id":id,"damage_type":"magic" if id=="xinzhao_e" or not physical(c) else "physical"},false);NewHeroKits.area(c,point,radius,amount(c,id),opts)
 static func bolt(c,point: Vector2,id: String,opts: Dictionary={}) -> void:
- opts=opts.duplicate();opts.merge({"effect_id":id,"damage_type":"physical" if physical(c) else "magic","size":10.,"life":c.hero.skills[["q","w","e","r"].find(id.get_slice("_",1))].range/750.},false)
+ opts=opts.duplicate();opts.merge({"effect_id":id,"damage_type":"magic" if id=="xinzhao_e" or not physical(c) else "physical","size":10.,"life":c.hero.skills[["q","w","e","r"].find(id.get_slice("_",1))].range/750.},false)
  NewHeroKits.projectile(c,c.world_pos(),(point-c.world_pos()).normalized(),amount(c,id),opts)
 static func dash(c,point: Vector2) -> bool:
  point=GameState.clamp_walkable(point)
@@ -81,32 +81,34 @@ static func cast(c,id: String,point: Vector2) -> bool:
     if not u.buffs.has("cc_guard"):u.buffs.silence={"time":1.2}
    area(c,c.world_pos(),id,230)
   "renekton_q":
-   var fury=Roster12Combat.spend_fury(c);var heal=0.
+   var fury=Roster12Combat.spend_fury(c);var heal=0.;var fury_gain=0.
    for u in enemies(c,c.world_pos(),160):
-    hit(c,u,id,1.5 if fury else 1.);heal+=(15.+c.ad*.08)*(3. if u.kind=="champion" else 1.)*(2. if fury else 1.)
+    hit(c,u,id,1.5 if fury else 1.);fury_gain+=10. if u.kind=="champion" else 2.5;heal+=(15.+c.ad*.08)*(3. if u.kind=="champion" else 1.)*(2. if fury else 1.)
+   if not fury:Roster12Combat.fury(c,minf(30.,fury_gain)*(1.5 if c.hp<c.hp_max*.5 else 1.))
    Roster12Combat.heal(c,minf(c.hp_max*.25,heal));visual(c,c.world_pos(),id,160)
   "renekton_w":
    var fury=Roster12Combat.spend_fury(c);empowerment(c,amount(c,id)*(1.5 if fury else 1.),1.5 if fury else .75);c.buffs.roster_attack.break_shield=fury;visual(c,c.world_pos(),id,60)
   "renekton_e":
    if not dash(c,point):return false
    var touched=Roster12Combat.line_hit(c,c.world_pos(),point,id,38)
-   if touched:c.buffs.dice={"time":4.}
+   if touched:c.buffs.dice={"time":4.};Roster12Combat.fury(c,10.)
    visual(c,c.world_pos(),id,75)
   "renekton_r":
    var health=100.+80*c.rank(3);c.hp_max+=health;c.hp+=health;c.buffs.dominion={"time":8.,"health":health,"tick":0.};Roster12Combat.fury(c,20.);visual(c,c.world_pos(),id,90,8.,{"follows_src":true})
-  "xinzhao_q":empowerment(c,amount(c,id));c.buffs.roster_attack.hits=3;c.buffs.roster_attack.time=6.;visual(c,c.world_pos(),id,60)
+  "xinzhao_q":empowerment(c,amount(c,id));c.buffs.roster_attack.hits=3;c.buffs.roster_attack.time=6.
   "xinzhao_w":
    NewHeroKits.area(c,c.world_pos(),125,amount(c,id)*.35,{"effect_id":id,"damage_type":"physical","cone_ang":dir.angle(),"arc":PI*.65,"duration":.3})
    c.buffs.wind_thunder={"time":.3,"direction":dir};visual(c,c.world_pos()+dir*235,id,235,.45,{"effect_dir":dir})
   "xinzhao_e":
    victim=NewHeroKits.target(c,point,360)
    if victim==null or not dash(c,victim.world_pos()):return false
-   c.buffs.challenge={"time":5.,"target":ref(victim)};area(c,victim.world_pos(),id,110);c.buffs.roster_as={"time":4.,"mult":1.4}
+   c.buffs.challenge={"time":5.,"target":ref(victim)};c.buffs.audacious_charge={"time":1.5,"target":ref(victim),"point":victim.world_pos(),"direction":dir};c.buffs.roster_as={"time":4.,"mult":1.4}
+   visual(c,c.world_pos(),id,65,.35,{"follows_src":true,"effect_dir":dir})
   "xinzhao_r":
    var challenged=resolve(c.buffs.get("challenge",{}).get("target",{}))
    for u in enemies(c,c.world_pos(),220):
     hit(c,u,id)
-    if u!=challenged:ForcedMotion.apply(u,u.world_pos()-c.world_pos(),180,.25)
+    if u!=challenged:ForcedMotion.apply(u,u.world_pos()-c.world_pos(),180,.25);HeroControl.airborne(u,.25)
    c.buffs.crescent_guard={"time":3.};visual(c,c.world_pos(),id,220)
   "riven_q":
    if not dash(c,point):return false
@@ -120,7 +122,7 @@ static func cast(c,id: String,point: Vector2) -> bool:
    if not dash(c,point):return false
    victim=NewHeroKits.target(c,point,290)
    if victim!=null and victim.world_pos().distance_to(point)<140:
-    hit(c,victim,id);Roster12Combat.vital(c,victim,point);c.buffs.lunge_refund={"time":.01}
+    hit(c,victim,id);c.buffs.lunge_refund={"time":.01}
    visual(c,point,id,75)
   "fiora_w":c.buffs.parry={"time":.75,"point":c.world_pos()+dir*360,"blocked_cc":false};c.stop_actions();visual(c,c.world_pos(),id,65,.75)
   "fiora_e":c.buffs.bladework={"time":5.,"hits":2};c.buffs.roster_as={"time":5.,"mult":1.5};c.atk_cd=0.;visual(c,c.world_pos(),id,60)
@@ -181,7 +183,9 @@ static func cast(c,id: String,point: Vector2) -> bool:
    c.buffs.force_of_will={"time":4.,"held":held};visual(c,c.world_pos(),id,50,.4)
   "syndra_e":
    for u in enemies(c,c.world_pos(),210):
-    if dir.dot((u.world_pos()-c.world_pos()).normalized())>.5:hit(c,u,id);ForcedMotion.apply(u,dir,130,.25)
+    if dir.dot((u.world_pos()-c.world_pos()).normalized())>(.2 if c.passive_state.get("splinters",0)>=80 else .5):
+     hit(c,u,id);ForcedMotion.apply(u,dir,130,.25)
+     if c.passive_state.get("splinters",0)>=80:control(u,1.25,.7)
    for s in spheres(c):
     if c.world_pos().distance_to(s.global_position)<360 and dir.dot((s.global_position-c.world_pos()).normalized())>.35:
      NewHeroKits.projectile(c,s.global_position,dir,amount(c,id),{"effect_id":id,"damage_type":"magic","speed":850.,"life":.7,"stun":1.5,"pierce":99,"size":16.});remove_sphere(s)
@@ -221,7 +225,7 @@ static func recast(c,index: int,point: Vector2) -> bool:
   "riven_q":
    point=c.world_pos()+dir*minf(150,c.world_pos().distance_to(point))
    if not dash(c,point):return false
-   var n=int(c.buffs.broken_arc.cast)+1;area(c,point,id,110,{"stun":.65 if n==3 else 0.})
+   var n=int(c.buffs.broken_arc.cast)+1;area(c,point,id,110,{"airborne":.65 if n==3 else 0.})
    if n==3:c.buffs.erase("broken_arc")
    else:c.buffs.broken_arc.cast=n;c.buffs.broken_arc.time=4.
   "riven_r":bolt(c,point,id,{"pierce":99,"special_hit":true,"size":20.});c.buffs.exile.recast=false

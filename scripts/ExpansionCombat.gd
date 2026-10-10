@@ -3,7 +3,7 @@ extends RefCounted
 static func healing_multiplier(c) -> float:
  return (1.25 if c.inventory.has("spirit_visage") else 1.)*(.6 if c.buffs.has("grievous") else 1.)
 static func is_magic(src,kind: String) -> bool:
- return kind in ["magic","item_magic","burn"] or (kind=="skill" and is_instance_valid(src) and src.kind=="champion" and src.hero_key in ["lux","ahri","annie","katarina","kayle"])
+ return kind in ["magic","item_magic","burn","passive_magic"] or (kind=="skill" and is_instance_valid(src) and src.kind=="champion" and src.hero_key in ["lux","ahri","annie","katarina","kayle"])
 static func resist(target,src,kind: String) -> float:
  var magic=is_magic(src,kind)
  var armor=target.bonus_mr+target.base_mr if magic and target.kind=="champion" else target.bonus_armor if "bonus_armor" in target else 0.
@@ -36,6 +36,9 @@ static func after_hit(src,target,kind: String) -> void:
  if src.inventory.has("black_cleaver"):
   target.buffs.armor_shred={"time":4.,"stacks":mini(4,int(target.buffs.get("armor_shred",{}).get("stacks",0))+1)}
  if src.inventory.has("nashor"):NewHeroKits.hit(src,target,15.+src.bonus_ap*.15,"item_magic")
+static func silver_hit(src,target) -> void:
+ if src.rank(1)<=0 or target.kind=="structure":return
+ ExpansionKits.tick(src,0.)
  if src.buffs.has("silver") and not target.dead:
   var buff=src.buffs.silver
   if buff.target_id!=target.get_instance_id():buff.target_id=target.get_instance_id();buff.stacks=0

@@ -43,6 +43,7 @@ var visual_scale: float = 1.0
 var hook_chain: bool = false
 var effect_id: String = ""
 var thresh_mark: bool = false
+var spell_id: String = ""
 var special_hit: bool = false
 var no_structures: bool = false
 var champion_dash: bool = false
@@ -73,6 +74,7 @@ func visual_origin() -> Vector2:
 func setup(_src, pos: Vector2, _dir: Vector2, opts: Dictionary) -> void:
 	special_hit=opts.get("special_hit",false);no_structures=opts.get("no_structures",false);champion_dash=opts.get("champion_dash",false);interceptable=opts.get("interceptable",false);bounces=opts.get("bounces",0);falloff=opts.get("falloff",1.);cast_origin=opts.get("origin",pos)
 	effect_id = opts.get("effect_id", "")
+	spell_id=opts.get("spell_id",effect_id)
 	thresh_mark = opts.get("thresh_mark",false)
 	src = _src
 	team = _src.team
@@ -290,7 +292,7 @@ func update_frame(delta: float) -> void:
 		if dd < size + u.size * 0.7:
 			if "buffs" in u and u.buffs.has("parry") and stun_time>0:u.buffs.parry.blocked_cc=true
 			var payload=Roster12Combat.special_damage(effect_id,src,u,dmg,cast_origin) if special_hit else dmg
-			get_tree().call_group("game_main", "deal_damage", src, u, payload, damage_type)
+			get_tree().call_group("game_main", "deal_damage", src, u, payload, damage_type,spell_id)
 			Roster12Combat.projectile_hit(self,u)
 			dmg*=falloff
 			if thresh_mark and is_instance_valid(src) and not u.dead and "buffs" in u and not u.buffs.has("cc_guard") and not u.buffs.has("spell_guard"):
@@ -310,6 +312,7 @@ func update_frame(delta: float) -> void:
 				var destination=u.world_pos()+dir*knockback_distance
 				u.global_position=GameState.clamp_walkable(destination)
 				if wall_stun>0 and u.world_pos().distance_to(destination)>10:u.stun=maxf(u.stun,wall_stun)
+			if wind_kind==1 and not guarded:HeroControl.airborne(u,stun_time)
 			if stun_time > 0 and "stun" in u and not guarded: u.stun = max(u.stun, stun_time)
 			if slow_pct > 0 and "buffs" in u and not guarded:
 				var cur = u.buffs.get("slow", {"pct": 0.0, "time": 0.0})

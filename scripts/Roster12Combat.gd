@@ -31,39 +31,44 @@ static func before_auto(c,target) -> float:
  var bonus=0.
  if c.buffs.has("exile"):bonus+=c.ad*.2
  if c.buffs.has("runes"):
-  bonus+=c.ad*(.15+.003*mini(c.level,18));c.buffs.runes.stacks-=1
+  bonus+=c.ad*(.3+.3*(mini(c.level,18)-1)/17.)*(1.2 if c.buffs.has("exile") else 1.);c.buffs.runes.stacks-=1
   if c.buffs.runes.stacks<=0:c.buffs.erase("runes")
  if c.buffs.has("roster_attack"):
   bonus+=c.buffs.roster_attack.damage if c.hero_key!="leona" else 0.
   if c.buffs.roster_attack.get("break_shield",false) and "shield" in target:target.shield=0.
  if c.buffs.has("bladework") and c.buffs.bladework.hits==1:bonus+=c.ad*.6
  if c.hero_key=="caitlyn":
-  var n=int(c.buffs.get("headshot",{}).get("stacks",0))+1
+  var n=int(c.passive_state.get("headshot",0))+(2 if BrushVision.patch_at(c.world_pos())>=0 else 1)
   var marked="buffs" in target and target.buffs.get("rifle_mark",{}).get("src")==c
-  if n>=6 or marked:bonus+=c.ad*.65;n=0
+  if n>=6 or marked:bonus+=c.ad*(.65+HeroPassives.critical_chance(c)*.75)
+  if n>=6:n=0
   if marked:target.buffs.erase("rifle_mark")
-  c.buffs.headshot={"time":9999.,"stacks":n}
+  c.passive_state.headshot=n
  return bonus
 static func after_hit(src,target,kind: String) -> void:
  if not is_instance_valid(src) or src.kind!="champion" or target.kind=="structure":return
- if target.buffs.has("sunlight") and target.buffs.sunlight.src!=src and kind in ["auto","magic","physical","skill"]:
+ if target.buffs.has("sunlight") and target.buffs.sunlight.src!=src and is_instance_valid(target.buffs.sunlight.src) and target.buffs.sunlight.src.team==src.team and kind in ["auto","magic","physical","skill"]:
   var mark=target.buffs.sunlight;target.buffs.erase("sunlight")
   if is_instance_valid(mark.src):NewHeroKits.hit(mark.src,target,20.+mark.src.level*3.,"item_magic")
  if src.hero_key=="xinzhao" and kind=="physical" and target.kind=="champion":src.buffs.challenge={"time":5.,"target":Roster12Kits.ref(target)}
  if src.hero_key=="leona" and kind=="magic":target.buffs.sunlight={"time":1.5,"src":src}
  if src.hero_key=="brand" and kind=="magic" and target.hp>0:
   var b=target.buffs.get("blaze",{"stacks":0,"tick":0.});b.stacks=mini(3,int(b.stacks)+1);b.time=4.;b.src=src;target.buffs.blaze=b
-  if b.stacks>=3 and not target.buffs.has("blaze_lock"):
+  if b.stacks>=3 and target.kind=="champion" and not target.buffs.has("blaze_lock"):
    target.buffs.blaze_detonate={"time":1.,"src":src};target.buffs.blaze_lock={"time":5.}
  if kind!="auto":return
- if src.hero_key=="renekton":fury(src,5.)
+ if src.hero_key=="renekton":fury(src,7.5 if src.hp<src.hp_max*.5 else 5.)
  if src.buffs.has("roster_attack"):
   var b=src.buffs.roster_attack;var stun=b.stun
-  if src.hero_key=="leona":NewHeroKits.hit(src,target,b.damage,"item_magic")
+  if src.hero_key=="leona":
+   NewHeroKits.hit(src,target,b.damage,"item_magic");target.buffs.sunlight={"time":1.5,"src":src}
   if src.hero_key=="xinzhao":
-   stun=1. if b.hits==1 else 0.
+   stun=0.
+   if b.hits==1:HeroControl.airborne(target,1.)
+   Roster12Kits.visual(src,target.world_pos(),"xinzhao_q",48,.22,{"effect_dir":Vector2.UP if b.hits==1 else (target.world_pos()-src.world_pos()).normalized()})
    for i in range(3):src.skill_cds[i]=maxf(0.,src.skill_cds[i]-1.)
-  if stun>0:Roster12Kits.control(target,stun)
+  if src.hero_key=="blitzcrank":HeroControl.airborne(target,1.)
+  elif stun>0:Roster12Kits.control(target,stun)
   if b.slow>0:Roster12Kits.control(target,1.5,b.slow)
   b.hits-=1
   if b.hits<=0:src.buffs.erase("roster_attack")
@@ -73,14 +78,11 @@ static func after_hit(src,target,kind: String) -> void:
   if src.buffs.bladework.hits<=0:src.buffs.erase("bladework");src.buffs.erase("roster_as")
  if src.hero_key=="xinzhao":
   src.buffs.challenge={"time":5.,"target":Roster12Kits.ref(target)}
-  var count=int(src.buffs.get("spear_heal",{}).get("hits",0))+1;src.buffs.spear_heal={"time":8.,"hits":count%3}
-  if count%3==0:heal(src,12.+src.ad*.12+src.bonus_ap*.15)
  if src.hero_key=="blitzcrank" and src.rank(3)>0:target.buffs.static_mark={"time":1.,"src":src}
- if src.hero_key=="fiora":vital(src,target,src.world_pos())
  if src.hero_key=="xerath" and src.item_cds.get("arcane_mana",0.)<=0:
-  src.mp=minf(src.mp_max,src.mp+25.+src.level*2.);src.item_cds.arcane_mana=8.
+  src.mp=minf(src.mp_max,src.mp+(25.+mini(src.level,18)*2.)*(2. if target.kind=="champion" else 1.));src.item_cds.arcane_mana=8.
  if src.buffs.has("lightslinger"):
-  src.buffs.erase("lightslinger");NewHeroKits.hit(src,target,src.ad*.5,"item_physical");src.skill_cds[2]=maxf(0.,src.skill_cds[2]-1.)
+  src.buffs.erase("lightslinger");NewHeroKits.projectile(src,src.world_pos(),(target.world_pos()-src.world_pos()).normalized(),src.ad*.5,{"homing":target,"damage_type":"secondary_auto","effect_id":"lucian_auto","speed":950.,"size":7.});src.skill_cds[2]=maxf(0.,src.skill_cds[2]-1.)
  if target.buffs.get("radiant_mark",{}).get("src")==src:src.buffs.haste={"time":1.5,"mult":1.2}
  if src.buffs.has("ricochet"):
   src.buffs.ricochet.hits-=1
@@ -98,9 +100,9 @@ static func vital(c,target,origin: Vector2) -> void:
   NewHeroKits.hit(c,target,target.hp_max*(.025+c.bonus_ad*.0002),"exec");heal(c,20.+c.level*2.);c.buffs.haste={"time":1.5,"mult":1.2}
   if b.mask==15 or target.hp<=0:healing_field(c,target.world_pos());target.buffs.erase("grand_challenge")
  else:
-  var exposed=int(target.buffs.get("vital",{}).get("side",posmod(GameState.champions.find(target),4)))
+  var key="vital_"+str(GameState.champions.find(c));var exposed=int(target.buffs.get(key,{}).get("side",posmod(GameState.champions.find(target),4)))
   if side!=exposed:return
-  target.buffs.vital={"time":8.,"side":(exposed+1)%4}
+  target.buffs[key]={"time":8.,"side":(exposed+1)%4,"src":c}
   NewHeroKits.hit(c,target,target.hp_max*(.025+c.bonus_ad*.0002),"exec");heal(c,15.+c.level*2.);c.buffs.haste={"time":1.5,"mult":1.2}
 static func healing_field(c,point: Vector2) -> void:
  Roster12Kits.visual(c,point,"fiora_r",170,4.,{"zone_kind":"heal_field"})
@@ -122,11 +124,16 @@ static func projectile_hit(p,u) -> void:
    pool.sort_custom(func(a,b):return a.kind=="champion" and b.kind!="champion")
    if not pool.is_empty():NewHeroKits.projectile(c,u.world_pos(),(pool[0].world_pos()-u.world_pos()).normalized(),p.dmg,{"effect_id":p.effect_id,"homing":pool[0],"damage_type":"magic","bounces":p.bounces-1,"special_hit":true,"life":2.,"size":12.})
 static func tick(c,delta: float) -> void:
+ if c.kind=="champion" and c.buffs.has("audacious_charge") and c.is_dashing:
+  var chased=Roster12Kits.resolve(c.buffs.audacious_charge.target)
+  if is_instance_valid(chased) and not chased.dead:c.dash_target=GameState.clamp_walkable(chased.world_pos())
+ if c.kind=="champion" and c.buffs.has("audacious_charge") and not c.is_dashing:
+  var charge=c.buffs.audacious_charge;c.buffs.erase("audacious_charge")
+  Roster12Kits.area(c,c.world_pos(),"xinzhao_e",110,{"slow":.3,"slow_dur":.5,"duration":.35,"effect_dir":charge.direction})
  if c.kind=="champion" and c.hero_key=="fiora":
   for u in Roster12Kits.enemies(c,c.world_pos(),600):
-   if u.kind=="champion" and not u.buffs.has("grand_challenge") and not u.buffs.has("vital"):u.buffs.vital={"time":8.,"side":posmod(GameState.champions.find(u),4),"src":c}
+   if u.kind=="champion" and (not u.buffs.has("grand_challenge") or u.buffs.grand_challenge.src!=c) and not u.buffs.has("vital_"+str(GameState.champions.find(c))):u.buffs["vital_"+str(GameState.champions.find(c))]={"time":8.,"side":posmod(GameState.champions.find(u),4),"src":c}
  if c.buffs.has("arcanopulse") and c.stun>0:c.buffs.erase("arcanopulse");c.buffs.erase("slow")
- if c.kind=="champion" and c.hero_key=="blitzcrank" and c.hp<c.hp_max*.3 and c.item_cds.get("mana_barrier",0.)<=0:c.shield+=c.mp*.3;c.item_cds.mana_barrier=45.
  for key in ["culling","sphere_barrage","dominion","blaze"]:
   if not c.buffs.has(key):continue
   var b=c.buffs[key];b.tick=b.get("tick",0.)+delta

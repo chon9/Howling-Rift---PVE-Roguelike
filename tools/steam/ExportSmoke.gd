@@ -55,6 +55,15 @@ func run() -> void:
   var kit_art=load("res://scripts/KitEffectArt.gd")
   var roster12=load("res://scripts/RosterExpansion12.gd");var actions12=load("res://scripts/ActionSpriteArt.gd");var icons12=load("res://scripts/AbilityArt.gd")
   check(root.get_node("ChampionData").CHAMPIONS.size()==30,"export has all thirty heroes")
+  var passives=load("res://scripts/HeroPassives.gd");var portraits=load("res://scripts/HeroArt.gd")
+  for hero in root.get_node("ChampionData").CHAMPIONS:
+   check(passives.DATA.has(hero),"exported passive metadata "+hero)
+   var portrait=portraits.texture_for(hero)
+   check(portrait.filter_clip and is_equal_approx(portrait.get_width(),portrait.get_height()),"exported square portrait "+hero)
+  check(load("res://scripts/SteamSession.gd").PROTOCOL=="5","export uses passive/vision network protocol")
+  var passive_snapshot=load("res://scripts/LanSnapshot.gd").encode().champs[0]
+  check(passive_snapshot.has("passive_state") and passive_snapshot.vision_teams.size()==2,"export serializes passive counters and team visibility")
+  check(root.get_node("ChampionData").CHAMPIONS.vayne.skills[1].kind=="passive","exported Vesper W stays passive")
   for hero in roster12.KEYS:
    for action in ["idle","run","attack","q","w","e","r","hit","death","recall"]:
     for frame in range(6):check(actions12.texture_for_frame("hero_"+hero,action,frame)!=null and actions12.region("hero_"+hero,action,frame).has_area(),"exported action "+hero+action+str(frame))

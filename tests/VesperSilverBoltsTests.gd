@@ -21,8 +21,9 @@ func _ready() -> void:
  hero.global_position=Vector2(1350,270);hero.inventory=["","","","","",""];hero.buffs.clear();hero.bonus_crit=0.;hero.bonus_armor_pen=0.;hero.bonus_lethality=0.;hero.difficulty_stats={};hero.bonus_ap=500.
  var auto_damage=floor(hero.ad/6.)
  prepare(target)
- check(hero.try_cast_skill(1,hero.world_pos()),"W is learned and activation succeeds")
- check(hero.buffs.has("silver") and hero.buffs.silver.time==5.,"W activates a five-second buff")
+ ExpansionKits.tick(hero,0.)
+ check(not hero.try_cast_skill(1,hero.world_pos()),"W is a learned passive, not an active cast")
+ check(hero.buffs.has("silver") and hero.buffs.silver.time>9000.,"W stays active once learned")
  for hit in range(1,4):
   var hp=target.hp;land(hero,target)
   var expected=auto_damage+(500. if hit==3 else 0.)
@@ -39,11 +40,12 @@ func _ready() -> void:
  for hit in range(3):land(hero,minion)
  check(is_equal_approx(10000.-minion.hp,floor(hero.ad)*3.+80.),"minion bonus is capped at 80 true damage")
  hero.update_frame(5.1)
- check(not hero.buffs.has("silver"),"five-second expiry removes W")
+ check(hero.buffs.has("silver"),"W remains active after five seconds")
  prepare(target);var before=target.hp;land(hero,target)
- check(is_equal_approx(before-target.hp,auto_damage),"inactive W does not proc")
+ check(is_equal_approx(before-target.hp,auto_damage),"new target starts at one stack")
  hero.skill_ranks[1]=5;hero.skill_cds[1]=0.;hero.mp=hero.mp_max;hero.global_position=Vector2(1350,270)
- check(hero.try_cast_skill(1,hero.world_pos()),"rank-five W activates")
+ hero.buffs.erase("silver");ExpansionKits.tick(hero,0.)
+ check(hero.buffs.silver.ratio==.09,"rank-five W updates its permanent ratio")
  before=target.hp
  for hit in range(3):land(hero,target)
  check(is_equal_approx(before-target.hp,auto_damage*3.+900.),"rank-five third hit deals nine percent max HP")

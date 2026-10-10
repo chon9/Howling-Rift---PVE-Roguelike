@@ -155,7 +155,7 @@ func _draw() -> void:
 		var pose = animator.pose()
 		ActionSpriteArt.apply_frame_mask(material,animator.key,pose.action,pose.frame)
 		draw_set_transform(Vector2.ZERO,0,Vector2(facing_sign,1))
-		draw_texture_rect_region(animator.texture(),animator.draw_rect(),animator.source_rect(),Color(1.10,1.06,1.02) if flash_t>0 else Color.WHITE)
+		draw_texture_rect_region(animator.texture(),Rect2(animator.draw_rect().position-Vector2(0,HeroControl.lift(self)),animator.draw_rect().size),animator.source_rect(),Color(1.10,1.06,1.02) if flash_t>0 else Color.WHITE)
 		draw_set_transform(Vector2.ZERO)
 
 	# Status FX ------------------------------------
@@ -193,6 +193,7 @@ func update_frame(delta: float) -> void:
 	ExpansionCombat.tick(self,delta)
 	if dead:return
 	Roster12Combat.tick(self,delta)
+	HeroPassives.tick(self,delta)
 	for key in buffs.keys():
 		buffs[key]["time"] -= delta
 		if buffs[key]["time"] <= 0:
@@ -203,6 +204,7 @@ func update_frame(delta: float) -> void:
 		lifetime -= delta
 		if lifetime <= 0: dead = true; return
 
+	if buffs.has("airborne"):stun=maxf(stun,buffs.airborne.time)
 	if stun > 0:
 		queued_attack_target = null
 		attack_windup = 0

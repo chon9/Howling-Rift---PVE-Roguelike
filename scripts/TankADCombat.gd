@@ -56,11 +56,11 @@ static func lifeline(c,kind: String,projected_hp: float=-1.) -> void:
    # One Locket shield per ally; refresh without stacking multiple owners.
    var previous=ally.buffs.get("locket_shield",{}).get("shield",0.)
    grant=maxf(grant,previous)
-   ally.shield=maxf(0.,ally.shield-previous)+grant
+   ally.shield=maxf(0.,ally.shield-previous)+grant;HeroPassives.support(c,ally)
    ally.buffs.locket_shield={"time":3.,"shield":grant}
 static func consume_shield(c,amount: float) -> void:
  if not "buffs" in c:return
- for key in ["locket_shield","lifeline"]:
+ for key in ["locket_shield","lifeline","flow_shield","mana_barrier","valor"]:
   if c.buffs.has(key):
    var used=minf(amount,c.buffs[key].shield)
    c.buffs[key].shield-=used;amount-=used

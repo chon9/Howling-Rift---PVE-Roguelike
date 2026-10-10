@@ -1,6 +1,6 @@
 class_name LanSnapshot
 extends RefCounted
-const CHAMP_FIELDS = ["level","xp","gold","cs","hp","hp_max","mp","mp_max","shield","dead","respawn_at","is_targetable","kills","deaths","assists","skill_ranks","skill_cds","skill_points","level_bonus","comeback_gold_awarded","last_comeback_gold","summoner_cds","summoner_spells","inventory","run_bonus","consumable_bonus","consumable_counts","permanent_bonus","difficulty_stats","ad","atk_range","auto_type","bonus_ad","bonus_ap","bonus_hp","bonus_mp","bonus_as","bonus_ms","bonus_cdr","bonus_lifesteal","bonus_armor","bonus_mr","base_mr","bonus_armor_pen","bonus_magic_pen","bonus_lethality","bonus_reflect","bonus_hp_regen","bonus_crit","bonus_crit_damage","stun","recall_time","brush_revealed_until","has_move_target","move_target","facing","attack_pulse","item_cds","attack_move","attack_move_destination","owner_peer","is_bot","char_name","auto_windup","anim_action","anim_elapsed","anim_duration","anim_windup","anim_released","anim_serial","anim_from","anim_to"]
+const CHAMP_FIELDS = ["level","xp","gold","cs","hp","hp_max","mp","mp_max","shield","dead","respawn_at","is_targetable","kills","deaths","assists","skill_ranks","skill_cds","skill_points","level_bonus","comeback_gold_awarded","last_comeback_gold","summoner_cds","summoner_spells","inventory","run_bonus","consumable_bonus","consumable_counts","permanent_bonus","difficulty_stats","ad","atk_range","auto_type","bonus_ad","bonus_ap","bonus_hp","bonus_mp","bonus_as","bonus_ms","bonus_cdr","bonus_lifesteal","bonus_armor","bonus_mr","base_mr","bonus_armor_pen","bonus_magic_pen","bonus_lethality","bonus_reflect","bonus_hp_regen","bonus_crit","bonus_crit_damage","stun","recall_time","brush_revealed_until","vision_teams","passive_state","has_move_target","move_target","facing","attack_pulse","item_cds","attack_move","attack_move_destination","owner_peer","is_bot","char_name","auto_windup","anim_action","anim_elapsed","anim_duration","anim_windup","anim_released","anim_serial","anim_from","anim_to"]
 static func clean_buffs(buffs: Dictionary) -> Dictionary:
  var result = {}
  for key in buffs:
@@ -15,6 +15,7 @@ static func clean_buffs(buffs: Dictionary) -> Dictionary:
 static func encode() -> Dictionary:
  var packet = {"time":GameState.time,"wave":GameState.wave_num,"score":GameState.score.duplicate(),"stage":GameState.difficulty,"reward":GameState.reward_difficulty,"champs":[],"minions":[],"structures":[],"projectiles":[],"aoes":[]}
  for c in GameState.champions:
+  c.vision_teams=[BrushVision.visible_to(c,Constants.BLUE),BrushVision.visible_to(c,Constants.RED)]
   var state = {"position":c.world_pos(),"buffs":clean_buffs(c.buffs),"attack":target_ref(c.attack_target),"flay_charge":c.flay_charge}
   for field in CHAMP_FIELDS: state[field] = c.get(field)
   if LanSession.players.has(c.owner_peer): state.char_name = LanSession.players[c.owner_peer].name
@@ -56,7 +57,6 @@ static func apply(packet: Dictionary, session) -> void:
   session.record_position(c,state.position)
   if c == GameState.player: c.char_name = "You"
   c.name_label.text = c.char_name
-  c.visible = not c.dead
   c._sync_bars()
   c.queue_redraw()
  for index in range(mini(packet.structures.size(),GameState.structures.size())):
@@ -69,6 +69,7 @@ static func apply(packet: Dictionary, session) -> void:
  reconcile(packet.aoes,session.replica_aoes,session,"aoe")
  for index in range(mini(packet.champs.size(),GameState.champions.size())):
   GameState.champions[index].attack_target = resolve_target(packet.champs[index].attack,session)
+ BrushVision.update_presentation()
  var ui = session.main.hud.get_node("HudRoot")
  ui.difficulty_label.text = "N%d" % GameState.difficulty
  if GameState.player.dead: ui.show_death_overlay()

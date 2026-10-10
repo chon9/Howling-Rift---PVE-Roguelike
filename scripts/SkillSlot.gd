@@ -68,7 +68,7 @@ func _process(delta: float) -> void:
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		clicked.emit()
+		if sk_data.get("kind","")!="passive":clicked.emit()
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_MOUSE_ENTER:
@@ -179,7 +179,7 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2(pip_x + i * (pip_w + pip_gap), pip_y), Vector2(pip_w, pip_h)), Color(1, 0.8, 0.25) if i < rank else Color(0.18, 0.21, 0.28), true)
 	draw_rect(Rect2(3, 9, 18, 18), Color(0.02, 0.03, 0.05, 0.85))
 	# Hotkey (top-left)
-	var key_text = sk_data.get("key", "")
+	var key_text = "P" if sk_data.get("kind","")=="passive" else sk_data.get("key", "")
 	draw_string(font, Vector2(6, 23), key_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11,
 		Color(1.0, 0.86, 0.33))
 

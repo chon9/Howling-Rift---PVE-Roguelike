@@ -8,6 +8,7 @@ static func patch_at(point: Vector2) -> int:
 static func visible_to(unit, team: int) -> bool:
  if not is_instance_valid(unit) or unit.dead: return false
  if unit.team==team or unit.kind!="champion": return true
+ if LanSession.is_client():return bool(unit.vision_teams[team])
  var patch=patch_at(unit.world_pos())
  if patch<0 or unit.brush_revealed_until>GameState.time: return true
  for ally in GameState.champions+GameState.minions:

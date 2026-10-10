@@ -15,7 +15,7 @@ func skill_description(key: String, index: int, champion = null) -> String:
 	if ExpansionRoster.KEYS.has(key): numbers = ExpansionKits.description(skill.cast_id,champion,champion.skill_ranks[index] if champion != null else 1)
 	if key in RosterExpansion12.KEYS: numbers = Roster12Kits.description(skill.cast_id,champion,champion.skill_ranks[index] if champion != null else 1)
 	var reach = "Self" if skill.range <= 0 else "%d units" % int(skill.range)
-	return "%s  •  %s%s\n\n%s\n\nMana: %d  •  Cooldown: %.1fs  •  Range: %s" % [skill.key, skill.name, rank_text, skill.desc+"\n\n"+numbers+recast_text, skill.cost, cooldown, reach]
+	return "%s  •  %s%s\n\n%s\n\n%s: %d  •  Cooldown: %.1fs  •  Range: %s" % [skill.key, skill.name, rank_text, skill.desc+"\n\n"+numbers+recast_text, "Energy" if key in ["leesin","zed"] else "Mana", skill.cost, cooldown, reach]
 # Autoload: ChampionData — stat tables + skill metadata for each champion.
 # Skills reference a `cast_id` string that Champion.gd dispatches to the actual
 # implementation methods (keeps data pure and avoids Callable serialisation).
@@ -23,6 +23,14 @@ func skill_description(key: String, index: int, champion = null) -> String:
 func _ready() -> void:
 	CHAMPIONS.merge(ExpansionRoster.heroes())
 	CHAMPIONS.merge(RosterExpansion12.heroes())
+	for key in CHAMPIONS:
+		CHAMPIONS[key]["passive"]=HeroPassives.DATA[key]
+		if key in ["yasuo","katarina","riven","renekton","garen"]:
+			for stat in ["mp","mp_per_lv","mp_regen","mp_regen_per_lv"]:CHAMPIONS[key][stat]=0.
+			for sk in CHAMPIONS[key].skills:sk.cost=0
+		if key in ["leesin","zed"]:
+			CHAMPIONS[key].mp=200.;CHAMPIONS[key].mp_per_lv=0.;CHAMPIONS[key].mp_regen=10.;CHAMPIONS[key].mp_regen_per_lv=0.
+			CHAMPIONS[key].skills[3].cost=0
 var CHAMPIONS = {
 	"lux": {
 		"name":"Solara", "title":"The Prism Keeper", "role":"ARTILLERY • ROOT • LASER", "icon":"✦",
@@ -162,10 +170,10 @@ var CHAMPIONS = {
     "hp_per_lv": 100.0,
     "hp_regen": 5.0,
     "hp_regen_per_lv": 0.5,
-    "mp": 360.0,
-    "mp_per_lv": 35.0,
-    "mp_regen": 9.0,
-    "mp_regen_per_lv": 0.5,
+    "mp": 0.0,
+    "mp_per_lv": 0.0,
+    "mp_regen": 0.0,
+    "mp_regen_per_lv": 0.0,
     "ad": 66.0,
     "ad_per_lv": 3.5,
     "atk_range": 105.0,
@@ -184,7 +192,7 @@ var CHAMPIONS = {
         "key": "Q",
         "name": "Steel Tempest",
         "icon": "",
-        "cost": 20,
+        "cost": 0,
         "cd": 3,
         "max": 5,
         "kind": "line",
@@ -196,7 +204,7 @@ var CHAMPIONS = {
         "key": "W",
         "name": "Windguard",
         "icon": "",
-        "cost": 40,
+        "cost": 0,
         "cd": 14,
         "max": 5,
         "kind": "line",
@@ -208,7 +216,7 @@ var CHAMPIONS = {
         "key": "E",
         "name": "Sweeping Dash",
         "icon": "",
-        "cost": 25,
+        "cost": 0,
         "cd": 5,
         "max": 5,
         "kind": "target",
@@ -220,7 +228,7 @@ var CHAMPIONS = {
         "key": "R",
         "name": "Skybreaker",
         "icon": "",
-        "cost": 70,
+        "cost": 0,
         "cd": 35,
         "max": 3,
         "kind": "target",
@@ -242,10 +250,10 @@ var CHAMPIONS = {
     "hp_per_lv": 100.0,
     "hp_regen": 5.0,
     "hp_regen_per_lv": 0.5,
-    "mp": 360.0,
-    "mp_per_lv": 35.0,
-    "mp_regen": 9.0,
-    "mp_regen_per_lv": 0.5,
+    "mp": 0.0,
+    "mp_per_lv": 0.0,
+    "mp_regen": 0.0,
+    "mp_regen_per_lv": 0.0,
     "ad": 65.0,
     "ad_per_lv": 3.5,
     "atk_range": 100.0,
@@ -322,10 +330,10 @@ var CHAMPIONS = {
     "hp_per_lv": 100.0,
     "hp_regen": 5.0,
     "hp_regen_per_lv": 0.5,
-    "mp": 360.0,
-    "mp_per_lv": 35.0,
-    "mp_regen": 9.0,
-    "mp_regen_per_lv": 0.5,
+    "mp": 0.0,
+    "mp_per_lv": 0.0,
+    "mp_regen": 0.0,
+    "mp_regen_per_lv": 0.0,
     "ad": 67.0,
     "ad_per_lv": 3.5,
     "atk_range": 105.0,
@@ -482,10 +490,10 @@ var CHAMPIONS = {
     "hp_per_lv": 100.0,
     "hp_regen": 5.0,
     "hp_regen_per_lv": 0.5,
-    "mp": 360.0,
-    "mp_per_lv": 35.0,
-    "mp_regen": 9.0,
-    "mp_regen_per_lv": 0.5,
+    "mp": 0.0,
+    "mp_per_lv": 0.0,
+    "mp_regen": 0.0,
+    "mp_regen_per_lv": 0.0,
     "ad": 64.0,
     "ad_per_lv": 3.5,
     "atk_range": 105.0,
@@ -504,7 +512,7 @@ var CHAMPIONS = {
         "key": "Q",
         "name": "Bouncing Blades",
         "icon": "",
-        "cost": 30,
+        "cost": 0,
         "cd": 6,
         "max": 5,
         "kind": "target",
@@ -516,7 +524,7 @@ var CHAMPIONS = {
         "key": "W",
         "name": "Preparation",
         "icon": "",
-        "cost": 30,
+        "cost": 0,
         "cd": 8,
         "max": 5,
         "kind": "self",
@@ -528,7 +536,7 @@ var CHAMPIONS = {
         "key": "E",
         "name": "Shunpo",
         "icon": "",
-        "cost": 35,
+        "cost": 0,
         "cd": 8,
         "max": 5,
         "kind": "target",
@@ -540,7 +548,7 @@ var CHAMPIONS = {
         "key": "R",
         "name": "Death Lotus",
         "icon": "",
-        "cost": 80,
+        "cost": 0,
         "cd": 35,
         "max": 3,
         "kind": "self",

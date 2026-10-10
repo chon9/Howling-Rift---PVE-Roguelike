@@ -25,6 +25,8 @@ var effect_dir: Vector2 = Vector2.RIGHT
 var zone_kind: String = ""
 var arm_delay: float = 0.0
 var follows_src: bool = false
+var airborne_time: float = 0.
+var spell_id: String = ""
 var special_hit: bool = false
 var broken_walls: Array = [false,false,false,false,false]
 var previous_positions: Dictionary = {}
@@ -32,6 +34,8 @@ var previous_positions: Dictionary = {}
 func setup(_src, pos: Vector2, opts: Dictionary) -> void:
 	effect_id=opts.get("effect_id", "");effect_dir=opts.get("effect_dir",Vector2.RIGHT);zone_kind=opts.get("zone_kind", "");arm_delay=opts.get("arm_delay",0.);follows_src=opts.get("follows_src",false)
 	special_hit=opts.get("special_hit",false)
+	spell_id=opts.get("spell_id",effect_id)
+	airborne_time=opts.get("airborne",0.)
 	src = _src
 	damage_type=opts.get("damage_type","skill");ring=opts.get("ring",false);tick_interval=opts.get("tick_interval",0.)
 	team = _src.team
@@ -53,6 +57,11 @@ func setup(_src, pos: Vector2, opts: Dictionary) -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 
 func _draw() -> void:
+	if zone_kind in ["soul","dagger"]:
+		var icon=AbilityArt.icon_for("thresh" if zone_kind=="soul" else "katarina",1 if zone_kind=="soul" else 0)
+		draw_arc(Vector2.ZERO,18,0,TAU,24,Color("75ddc3") if zone_kind=="soul" else Color("e2a596"),1.5,true)
+		draw_texture_rect(icon,Rect2(-12,-24,24,24),false,Color(1,1,1,.85))
+		return
 	if KitEffectArt.has_effect(effect_id):
 		_draw_kit_effect()
 		return
@@ -84,7 +93,7 @@ func _draw() -> void:
 func update_frame(delta: float) -> void:
 	elapsed += delta
 	if follows_src and is_instance_valid(src) and not src.dead:global_position=src.world_pos()
-	if zone_kind in ["sphere","trap","heal_field"]:
+	if zone_kind in ["sphere","trap","heal_field","soul","dagger"]:
 		_roster_zone(delta)
 		queue_redraw()
 		if elapsed>=duration:GameState.aoes.erase(self);queue_free()
@@ -113,9 +122,10 @@ func update_frame(delta: float) -> void:
 					var diff = abs(wrapf(to_ang - cone_ang, -PI, PI))
 					if diff > arc * 0.5: continue
 				var payload=Roster12Combat.special_damage(effect_id,src,u,dmg,global_position) if special_hit else dmg
-				get_tree().call_group("game_main", "deal_damage", src, u, payload, damage_type)
+				get_tree().call_group("game_main", "deal_damage", src, u, payload, damage_type,spell_id)
 				hit_set.append(u)
 				var guarded="buffs" in u and (u.buffs.has("cc_guard") or u.buffs.has("spell_guard") or u.buffs.has("parry"))
+				if airborne_time>0 and not guarded:HeroControl.airborne(u,airborne_time)
 				if stun_time > 0 and "stun" in u and not guarded: u.stun = maxf(u.stun,stun_time)
 				if slow_pct > 0 and "buffs" in u and not guarded:
 					u.buffs["slow"] = {"pct": slow_pct, "time": slow_duration}
@@ -133,6 +143,10 @@ func _draw_kit_effect() -> void:
 	if effect_id in ["veigar_w","veigar_e"]:rect=KitEffectArt.ground_rect(effect_id,radius)
 	if effect_id in ["xinzhao_w","lucian_q","xerath_q"]:
 		draw_set_transform(Vector2.ZERO,effect_dir.angle());rect=Rect2(-radius,-30,radius*2,60)
+	elif effect_id=="xinzhao_q":
+		draw_set_transform(Vector2(0,-25),effect_dir.angle());rect=Rect2(-radius*.5,-radius*.18,radius,radius*.36)
+	elif effect_id=="xinzhao_e":
+		draw_set_transform(Vector2(0,-32),effect_dir.angle());rect=Rect2(-radius*.6,-radius*.28,radius*1.2,radius*.56)
 	elif effect_id in ["brand_w","leona_r","xerath_w","xerath_r","sivir_r"]:rect=Rect2(-radius,-radius*1.6,radius*2,radius*2)
 	if effect_id.get_slice("_",0) in RosterExpansion12.KEYS and arm_delay>0 and elapsed<arm_delay:
 		draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(color,.6),2.,true)
@@ -164,7 +178,7 @@ func _update_zone() -> void:
 		if not is_instance_valid(src) or src.dead:return
 		for ally in GameState.champions:
 			if ally.dead or ally.team!=team or hit_set.has(ally) or ally.world_pos().distance_to(global_position)>100:continue
-			ally.shield=maxf(ally.shield,dmg);hit_set.append(ally)
+			ally.shield=maxf(ally.shield,dmg);HeroPassives.support(src,ally);hit_set.append(ally)
 		return
 	for unit in GameState.champions+GameState.minions:
 		if unit.dead or unit.team==team or (zone_kind=="box" and unit.kind!="champion"):continue
@@ -198,11 +212,23 @@ func try_lantern(unit,point: Vector2) -> bool:
 	return true
 
 func _roster_zone(delta: float) -> void:
-	if not is_instance_valid(src) or src.dead:elapsed=duration;return
+	if not is_instance_valid(src) or (src.dead and zone_kind!="soul"):elapsed=duration;return
 	if zone_kind=="sphere" or elapsed<arm_delay:return
+	if zone_kind=="soul":
+		if src.dead:return
+		var collected=src.world_pos().distance_to(global_position)<65
+		for a in GameState.aoes:
+			if a.src==src and a.zone_kind=="lantern" and a.global_position.distance_to(global_position)<65:collected=true
+		if collected:src.passive_state.souls=int(src.passive_state.get("souls",0))+1;HeroPassives.add_stats(src,.75,.75);elapsed=duration
+		return
+	if zone_kind=="dagger":
+		if src.world_pos().distance_to(global_position)<65:
+			elapsed=duration;src.skill_cds[2]*=.22
+			for u in Roster12Kits.enemies(src,src.world_pos(),140):HeroPassives.proc(src,u,35.+mini(src.level,18)*6.+src.bonus_ap*.65+src.bonus_ad*.5)
+		return
 	if zone_kind=="heal_field":
 		for ally in GameState.champions:
-			if not ally.dead and ally.team==team and ally.world_pos().distance_to(global_position)<=radius:Roster12Combat.heal(ally,(25.+src.ad*.12)*delta)
+			if not ally.dead and ally.team==team and ally.world_pos().distance_to(global_position)<=radius:Roster12Combat.heal(ally,(25.+src.ad*.12)*delta);HeroPassives.support(src,ally)
 		return
 	for unit in GameState.champions:
 		if unit.dead or unit.team==team or unit.world_pos().distance_to(global_position)>radius+unit.size*.3:continue

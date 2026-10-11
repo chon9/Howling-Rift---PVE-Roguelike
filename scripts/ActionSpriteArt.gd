@@ -3,14 +3,41 @@ extends RefCounted
 # Per-cell metadata comes from the real generated atlases, never from a placeholder.
 static var manifest: Dictionary = {}
 static var textures: Dictionary = {}
+const CACHE_BUDGET_BYTES = 128 * 1024 * 1024
+static var pinned_paths: Dictionary = {}
+static var texture_costs: Dictionary = {}
+static var last_used: Dictionary = {}
+static var access_serial: int = 0
+static var cached_bytes: int = 0
 static func entry(key: String) -> Dictionary:
  if manifest.is_empty():
   manifest = JSON.parse_string(FileAccess.get_file_as_string("res://assets/animations/manifest.json"))
  return manifest[key]
 static func texture(key: String, override_path: String = "") -> Texture2D:
  var path = override_path if override_path!="" else str(entry(key).path)
- if not textures.has(path): textures[path] = load(path)
- return textures[path]
+ access_serial += 1;last_used[path] = access_serial
+ if textures.has(path):return textures[path]
+ var result: Texture2D = load(path)
+ textures[path] = result
+ var cost = int(result.get_width()*result.get_height()*4*4./3.)
+ texture_costs[path] = cost;cached_bytes += cost
+ trim_cache()
+ return result
+static func begin_match(hero_keys: Array) -> void:
+ pinned_paths.clear()
+ if manifest.is_empty():entry("minion_melee")
+ for key in manifest:
+  if not key.begins_with("minion_") and key.trim_prefix("hero_") not in hero_keys:continue
+  var data=manifest[key];pinned_paths[str(data.path)]=true
+  for cell in data.frames:pinned_paths[str(cell.get("path",data.path))]=true
+ trim_cache()
+static func trim_cache() -> void:
+ if cached_bytes<=CACHE_BUDGET_BYTES:return
+ var unused=textures.keys().filter(func(path):return not pinned_paths.has(path))
+ unused.sort_custom(func(a,b):return int(last_used.get(a,0))<int(last_used.get(b,0)))
+ for path in unused:
+  if cached_bytes<=CACHE_BUDGET_BYTES:break
+  cached_bytes-=int(texture_costs[path]);textures.erase(path);texture_costs.erase(path);last_used.erase(path)
 static func texture_for_frame(key: String, action: String, index: int) -> Texture2D:
  return texture(key,str(frame(key,action,index).get("path","")))
 static func frame(key: String, action: String, index: int) -> Dictionary:
@@ -35,6 +62,9 @@ static func body_rect(key: String, height: float, flip: bool = false) -> Rect2:
  return result
 
 static func apply_frame_mask(material: ShaderMaterial, key: String, action: String, index: int) -> void:
+ var stamp=key+":"+action+":"+str(index)
+ if material.get_meta("action_frame_mask","")==stamp:return
+ material.set_meta("action_frame_mask",stamp)
  var cell=frame(key,action,index)
  var texture=texture_for_frame(key,action,index)
  var dimensions=Vector2(texture.get_width(),texture.get_height())

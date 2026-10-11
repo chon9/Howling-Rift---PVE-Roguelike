@@ -18,3 +18,7 @@ static func region(id: String,frame: int) -> Rect2:
  var hero=id.get_slice("_",0);var row=["q","w","e","r"].find(id.get_slice("_",1));row=maxi(0,row)
  var crop=crops[hero][row*4+clampi(frame,0,3)]
  return Rect2(crop[0],crop[1],crop[2],crop[3])
+
+static func trim_skill_sheets(hero_keys: Array) -> void:
+ for path in textures.keys():
+  if path.begins_with("res://assets/vfx/") and path.get_file().trim_suffix("-skills-v1.png") not in hero_keys:textures.erase(path)

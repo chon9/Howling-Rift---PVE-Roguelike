@@ -524,6 +524,7 @@ func _build_match(player_hero: String) -> void:
 	_cancel_pending_skill()
 	_reset_camera_shake()
 	hero_impact_times.clear()
+	spell_hit_times.clear()
 	# Structures per team
 	for team in [BLUE, RED]:
 		_build_base(team)
@@ -534,6 +535,8 @@ func _build_match(player_hero: String) -> void:
 	var blue_pick = network_config.get("blue",[player_hero, others[0], others[1]])
 	var red_pick = MatchRoster.enemy_team(blue_pick)
 	if not network_config.is_empty(): red_pick = network_config.red.duplicate()
+	ActionSpriteArt.begin_match(blue_pick+red_pick)
+	KitEffectArt.begin_match(blue_pick+red_pick)
 	var b_names = ["You", "Allie", "Buddy"]
 	var r_names = ["Rival", "Villain", "Nemesis"]
 	for i in range(3):
@@ -1585,7 +1588,8 @@ func set_fullscreen(enabled: bool, persist_change: bool = true) -> void:
 	Progression.fullscreen_enabled = enabled
 	if changed and persist_change: Progression.save_profile()
 	if DisplayServer.get_name() != "headless":
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if enabled else DisplayServer.WINDOW_MODE_WINDOWED)
+		var mode=DisplayServer.WINDOW_MODE_FULLSCREEN if enabled else DisplayServer.WINDOW_MODE_WINDOWED
+		if DisplayServer.window_get_mode()!=mode:DisplayServer.window_set_mode(mode)
 	for overlay in [menu, in_game_menu]:
 		if not is_instance_valid(overlay): continue
 		for control in overlay.find_children("*", "CheckButton", true, false):
@@ -1698,6 +1702,7 @@ func _return_to_main_menu() -> void:
 	var sound_enabled = sound_fx.enabled if is_instance_valid(sound_fx) else true
 	_reset_camera_shake()
 	hero_impact_times.clear()
+	spell_hit_times.clear()
 	LanSession.leave()
 	GameState.reset()
 	for child in get_children():

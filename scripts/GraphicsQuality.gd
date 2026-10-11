@@ -21,7 +21,8 @@ func apply() -> void:
  # Headless checks don't render; don't throttle simulation tests.
  if DisplayServer.get_name() != "headless":
   Engine.max_fps = Progression.frame_limit
-  DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if Progression.vsync_enabled else DisplayServer.VSYNC_DISABLED)
+  var mode=DisplayServer.VSYNC_ENABLED if Progression.vsync_enabled else DisplayServer.VSYNC_DISABLED
+  if DisplayServer.window_get_vsync_mode()!=mode:DisplayServer.window_set_vsync_mode(mode)
 static func settings_row(parent: Control,quality: CanvasLayer) -> void:
  var smooth = CheckButton.new()
  smooth.name = "EdgeSmoothing"

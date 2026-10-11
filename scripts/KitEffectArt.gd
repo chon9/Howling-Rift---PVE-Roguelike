@@ -34,3 +34,12 @@ static func ground_rect(id: String,radius: float) -> Rect2:
  var anchor=cell*Vector2(.5,.5 if id=="veigar_w" else .48)-Vector2.ONE*2
  var scale_factor=radius/(cell.x*rim_ratio)
  return Rect2(-anchor*scale_factor,(cell-Vector2.ONE*4)*scale_factor)
+
+static func begin_match(hero_keys: Array) -> void:
+ var groups={}
+ for key in hero_keys:
+  if GROUPS.has(key):groups[GROUPS[key]]=true
+ for group in textures.keys():
+  if not groups.has(group):textures.erase(group)
+ if "veigar" not in hero_keys:ground_texture=null
+ Roster12Art.trim_skill_sheets(hero_keys)

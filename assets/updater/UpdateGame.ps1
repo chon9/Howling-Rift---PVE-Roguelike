@@ -68,8 +68,10 @@ function Verify-And-Stage([string]$Archive,[string]$Hash) {
 try {
  if ($Mode -eq 'Download') {
   Set-State 'downloading'
-  $prefix="https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/download/v$Version/"
-  if ($ZipUrl -ne ($prefix+$zipName) -or $ChecksumUrl -ne ($prefix+$zipName+'.sha256')) { throw 'Untrusted release URL' }
+  $prefix="https://github.com/chon9/Howling-Rift-PVE-Roguelike/releases/download/v$Version/"
+  $legacyPrefix="https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/download/v$Version/"
+  $trusted=($ZipUrl -eq ($prefix+$zipName) -and $ChecksumUrl -eq ($prefix+$zipName+'.sha256')) -or ($ZipUrl -eq ($legacyPrefix+$zipName) -and $ChecksumUrl -eq ($legacyPrefix+$zipName+'.sha256'))
+  if (-not $trusted) { throw 'Untrusted release URL' }
   [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
   $client=New-Object Net.WebClient
   try {

@@ -1,6 +1,7 @@
 extends Node
 signal changed
-const REPO="chon9/Howling-Rift---PVE-Roguelike"
+const REPO="chon9/Howling-Rift-PVE-Roguelike"
+const LEGACY_REPO="chon9/Howling-Rift---PVE-Roguelike"
 const API="https://api.github.com/repos/"+REPO+"/releases/latest"
 const PAGE="https://github.com/"+REPO+"/releases/latest"
 const CACHE="user://updates"
@@ -49,14 +50,14 @@ static func parse_release(data: Variant) -> Dictionary:
  var tag=str(data.get("tag_name",""))
  if version_parts(tag).is_empty():return {}
  var version=tag.trim_prefix("v");var name="Howling-Rift-v"+version+"-Spacewar.zip"
- var prefix="https://github.com/"+REPO+"/releases/download/"+tag+"/"
+ var prefixes=["https://github.com/"+REPO+"/releases/download/"+tag+"/","https://github.com/"+LEGACY_REPO+"/releases/download/"+tag+"/"]
  var result={"version":version,"zip_url":"","checksum_url":""}
  if not data.get("assets",[]) is Array:return {}
  for asset in data.assets:
   if not asset is Dictionary:continue
   var url=str(asset.get("browser_download_url",""))
-  if asset.get("name","")==name and url==prefix+name:result.zip_url=url
-  if asset.get("name","")==name+".sha256" and url==prefix+name+".sha256":result.checksum_url=url
+  if asset.get("name","")==name and url in [prefixes[0]+name,prefixes[1]+name]:result.zip_url=url
+  if asset.get("name","")==name+".sha256" and url in [prefixes[0]+name+".sha256",prefixes[1]+name+".sha256"]:result.checksum_url=url
  return result if not result.zip_url.is_empty() and not result.checksum_url.is_empty() else {}
 func _checked(result: int,code: int,_headers: PackedStringArray,body: PackedByteArray) -> void:
  if result!=HTTPRequest.RESULT_SUCCESS or code!=200:_error("Update check unavailable. You can still play.");return

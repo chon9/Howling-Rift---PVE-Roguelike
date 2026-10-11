@@ -16,6 +16,7 @@ var next_voice: int = 0
 var next_priority_voice: int = 0
 var charge_voices: Dictionary = {}
 var charge_serials: Dictionary = {}
+var next_gate_cleanup: int = 0
 
 func _ready() -> void:
 	for key in NAMES: clips[key] = load("res://assets/audio/combat-v2/%s.wav" % key)
@@ -36,9 +37,9 @@ func play(event: String, actor = null) -> void:
 	if is_instance_valid(actor):
 		var camera = get_viewport().get_camera_2d()
 		if camera != null and actor.world_pos().distance_to(camera.global_position) > 900 and actor != GameState.player: return
-		if event == "attack":
+		if event == "attack" and actor.kind=="champion":
 			key = "fist" if actor.hero_key == "leesin" else ("blade" if actor.auto_type == "melee" else ("bow" if actor.hero_key == "ashe" else ("gun" if actor.hero_key == "jinx" else ("fire" if actor.hero_key == "annie" else "magic"))))
-		elif event in ["spell", "ultimate"]:
+		elif event in ["spell", "ultimate"] and actor.kind=="champion":
 			key = {"ashe":"frost", "annie":"fire", "garen":"blade", "lux":"light", "ahri":"spirit", "ezreal":"magic", "yasuo":"wind", "leesin":"fist", "zed":"blade", "jinx":"gun", "katarina":"blade", "kayle":"light", "caitlyn":"gun", "lucian":"gun", "sivir":"blade", "leona":"light", "blitzcrank":"fist", "renekton":"blade", "xinzhao":"blade", "riven":"blade", "fiora":"blade", "brand":"fire", "syndra":"spirit", "xerath":"light", "thresh":"spirit", "veigar":"spirit", "vayne":"bow", "darius":"blade", "malphite":"fist", "graves":"gun"}.get(actor.hero_key, "magic")
 			if event == "ultimate": key = "gun_ultimate" if key=="bow" else key+"_ultimate"
 	if not clips.has(key): return
@@ -75,6 +76,7 @@ func announce(key: String) -> void:
 
 func _process(_delta: float) -> void:
 	_update_charges()
+	_prune_gates()
 	for voice in voices:
 		if voice.has_meta("mix_volume"): voice.volume_db = float(voice.get_meta("mix_volume"))-(5 if announcer_voice.playing else 0)
 
@@ -116,3 +118,15 @@ func _update_charges() -> void:
 	for id in charge_voices.keys():
 		if not active.has(id):
 			charge_voices[id].stop();charge_voices[id].queue_free();charge_voices.erase(id)
+
+func _prune_gates() -> void:
+	var now=Time.get_ticks_msec()
+	if now<next_gate_cleanup:return
+	next_gate_cleanup=now+1000
+	for key in last_played.keys():
+		if now-int(last_played[key])>2000:last_played.erase(key)
+	var live={}
+	for actor in GameState.champions:
+		if is_instance_valid(actor):live[actor.get_instance_id()]=true
+	for id in charge_serials.keys():
+		if not live.has(id):charge_serials.erase(id)

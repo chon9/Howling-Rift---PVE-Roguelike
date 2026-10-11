@@ -24,6 +24,18 @@ const CHAMP_GROUND_MARK_SCALE: float = 0.7
 const WAVE_INTERVAL: float = 16.0
 const FIRST_WAVE_AT: float = 3.0
 
+# Match currency/XP: source rewards are scaled once, before enemy difficulty XP.
+const PASSIVE_GOLD: int = 12
+const PASSIVE_XP: float = 35.0
+const HERO_KILL_GOLD: int = 1000
+const HERO_KILL_XP: float = 1600.0
+const HERO_KILL_XP_PER_LEVEL: float = 60.0
+const ASSIST_XP: float = 600.0
+const ASSIST_XP_PER_LEVEL: float = 20.0
+const MINION_GOLD_MULTIPLIER: int = 3
+const MINION_SOAK_XP_MULTIPLIER: float = 4.8
+const LAST_HIT_XP_MULTIPLIER: float = 1.25
+
 const TEAM_COLOR = {
 	0: Color(0.29, 0.52, 1.0),
 	1: Color(1.0, 0.35, 0.35)

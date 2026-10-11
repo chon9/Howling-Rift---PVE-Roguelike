@@ -94,7 +94,7 @@ func setup(_team: int, _subkind: String, pos: Vector2, scale_mult: float = 1.0) 
 	speed = d["speed"]
 	size = d["size"] + 4
 	xp_val = int(d["xp"])
-	gold_val = int(d["gold"])
+	gold_val = int(d["gold"]) * Constants.MINION_GOLD_MULTIPLIER
 	ai_range = d["ai_range"]
 	color = d["color"]
 	dir_sign = 1 if team == Constants.BLUE else -1

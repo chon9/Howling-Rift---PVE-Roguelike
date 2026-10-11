@@ -4,7 +4,7 @@ var role: String = "host"
 var game
 var observed_w: Dictionary = {}
 func _process(_delta: float) -> void:
- if not LanSession.is_client() or not GameState.started: return
+ if not GameState.started: return
  for c in GameState.champions:
   if c.anim_action == "w": observed_w[c.owner_peer] = true
 func check(value: bool,text: String) -> void:
@@ -37,13 +37,14 @@ func _ready() -> void:
   for c in GameState.champions.slice(1,3): c.grant_xp(Constants.xp_to_level(3)); c.gold = 20000
   var lee = GameState.champions.filter(func(c): return c.hero_key == "leesin" and c.team == Constants.BLUE)[0]
   var marked = GameState.champions.filter(func(c): return c.hero_key == "zed" and c.team == Constants.BLUE)[0]
-  marked.buffs.sonic_mark = {"time":4.0,"src":lee}
   if DisplayServer.get_name() != "headless":
    await RenderingServer.frame_post_draw
    get_viewport().get_texture().get_image().save_png("res://tests/34-lan-host.png")
-  await until(func(): return GameState.time >= 6)
+  check(await until(func(): return GameState.champions.slice(1,3).all(func(c): return observed_w.has(c.owner_peer) and c.summoner_cds[1]>0),12),"guests finish casts before scripted deaths")
+  marked.buffs.sonic_mark = {"time":4.0,"src":lee}
+  check(await until(func(): return GameState.champions.slice(1,3).all(func(c): return c.skill_ranks[0]==2 and LanSession.draft_states.get(c.owner_peer,{}).get("picked",[]).size()==1),10),"guests finish recast and draft checks before deaths")
   for c in GameState.champions.slice(1,3): game._handle_death(GameState.champions[3],c)
-  await until(func(): return GameState.time >= 9)
+  await get_tree().create_timer(3.).timeout
   for c in GameState.champions.slice(1,3):
    check(c.inventory.has("dagger"),"guest purchase reached host")
    check(c.consumable_counts.get("training_ad",0)==2 and c.consumable_bonus.get("bonus_ad",0)==50,"guest stacked consumables reached host")
@@ -99,7 +100,7 @@ func _ready() -> void:
   check(await until(func():return p.consumable_counts.get("training_ad",0)==1,1),"guest receives first consumed stat bonus")
   p.try_buy_item("training_ad")
   check(await until(func():return p.consumable_counts.get("training_ad",0)==2 and p.consumable_bonus.get("bonus_ad",0)==50,1),"guest repeat purchase uses increasing price and replicated stats")
-  check(p.gold<1200 and not p.inventory.has("training_ad"),"guest consumables spend gold without a slot")
+  check(p.gold<1500 and not p.inventory.has("training_ad"),"guest consumables spend gold without a slot")
   var cooldown = p.summoner_cds[1]
   await get_tree().create_timer(0.4).timeout
   check(p.summoner_cds[1] < cooldown,"cooldown continues while dead")

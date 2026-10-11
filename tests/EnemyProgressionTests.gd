@@ -65,7 +65,9 @@ func _ready() -> void:
  game._respawn_champion(enemy);enemy.level=3;enemy.xp=0.;enemy.difficulty_stats=Progression.scaling(50);enemy.global_position=Vector2(1400,270)
  var minion=load("res://scripts/Minion.gd").new();game.world_root.add_child(minion);minion.setup(Constants.BLUE,"melee",Vector2(1400,270),1.)
  game._handle_death(enemy,minion)
- check(is_equal_approx(enemy.xp,minion.xp_val*1.2*1.25*Progression.scaling(50).experience),"real minion last-hit XP includes enemy difficulty multiplier")
+ var gained=enemy.xp
+ for lv in range(3,enemy.level):gained+=Constants.xp_to_level(lv)
+ check(is_equal_approx(gained,minion.xp_val*Constants.MINION_SOAK_XP_MULTIPLIER*Constants.LAST_HIT_XP_MULTIPLIER*Progression.scaling(50).experience),"real minion last-hit XP includes enemy difficulty multiplier across level-ups")
  player.level=100;player.xp=0.;game.hud.get_node("HudRoot").refresh(0.)
  check(game.hud.get_node("HudRoot").xp_bar.value==game.hud.get_node("HudRoot").xp_bar.max_value,"level-100 HUD XP bar is full")
  check(game.hud.get_node("HudRoot").xp_bar.tooltip_text.contains("MAX LEVEL"),"level cap replaces the next-level XP tooltip")

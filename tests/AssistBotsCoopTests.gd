@@ -24,7 +24,7 @@ func _ready() -> void:
   var enemy=GameState.champions[3]
   helper.gold=1000
   game.deal_damage(helper,enemy,20.,"magic");helper.position=Vector2(0,0);game._handle_death(GameState.player,enemy)
-  check(helper.gold==1075 and helper.assists==1,"server awards recent contributor once")
+  check(helper.gold==1000+CombatParticipation.ASSIST_GOLD and helper.assists==1,"server awards recent contributor once")
   GameState.player.passive_state.assist_phase=1
   for frame in range(25):LanSession.replicate(.05);await get_tree().create_timer(.05).timeout
   check(await until(func():return LanSession.players.size()==2,5.),"guest disconnect arrives")
@@ -39,7 +39,7 @@ func _ready() -> void:
   check(not GameState.allied_bots and GameState.player.roster_active,"host rule replicated without removing humans")
   check(await until(func():return GameState.champions[0].passive_state.get("assist_phase",0)==1),"assist result arrives")
   var helper=GameState.champions.filter(func(c):return c.hero_key=="leesin" and c.team==0)[0]
-  check(helper.gold==1075 and helper.assists==1,"gold and KDA replicated exactly")
+  check(helper.gold==1000+CombatParticipation.ASSIST_GOLD and helper.assists==1,"gold and KDA replicated exactly")
   if role=="client1":
    check(await until(func():return GameState.champions[0].passive_state.get("assist_phase",0)==2),"disconnect phase arrives")
    var quitter=GameState.champions.filter(func(c):return c.hero_key=="garen" and c.team==0)[0]

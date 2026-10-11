@@ -756,11 +756,7 @@ func _process(delta: float) -> void:
 
 	BrushVision.update_presentation()
 	_tick_waves()
-	economy_timer += delta
-	if economy_timer >= 1.0:
-		economy_timer -= 1.0
-		for c in GameState.champions:
-			if c.roster_active: c.gold += 2
+	_tick_economy(delta)
 	for c in GameState.champions:
 		if not c.roster_active: continue
 		if c.dead:
@@ -855,6 +851,18 @@ func _spawn_wave(team: int) -> void:
 			world_root.add_child(m2)
 			m2.setup(team, "super", Vector2(sx + dir * (260 + i * 32), Constants.LANE_Y + y_off[i]), scale_mult)
 			GameState.minions.append(m2)
+
+
+func _tick_economy(delta: float) -> void:
+	if LanSession.is_client() or not GameState.started or not GameState.running or GameState.paused or not is_finite(delta) or delta <= 0: return
+	economy_timer += delta
+	var seconds = floori(economy_timer)
+	if seconds <= 0: return
+	economy_timer -= seconds
+	for c in GameState.champions:
+		if not c.roster_active: continue
+		c.gold += Constants.PASSIVE_GOLD * seconds
+		c.grant_xp(Constants.PASSIVE_XP * seconds)
 
 func _respawn_champion(c) -> void:
 	if not c.roster_active: return
@@ -1130,14 +1138,15 @@ func _handle_death(killer, victim) -> void:
 			spawn_hero_impact(victim.world_pos(),3,34.,0.)
 			if killer != null and ("kind" in killer) and killer.kind == "champion":
 				killer.kills += 1
-				killer.gold += 300
-				killer.grant_xp(160)
+				killer.gold += Constants.HERO_KILL_GOLD
+				killer.grant_xp(Constants.HERO_KILL_XP + victim.level * Constants.HERO_KILL_XP_PER_LEVEL)
+				floating_text(killer.world_pos()+Vector2(0,-68),"+%dg KILL" % Constants.HERO_KILL_GOLD,Color("f4d481"),true)
 				TankADCombat.champion_kill(killer)
 			kill_announcer.register(killer,victim)
 			_log_kill(killer, victim)
 			for c in CombatParticipation.assistants(killer,victim):
 				c.gold += CombatParticipation.ASSIST_GOLD
-				c.grant_xp(40)
+				c.grant_xp(Constants.ASSIST_XP + victim.level * Constants.ASSIST_XP_PER_LEVEL)
 				c.assists += 1
 				floating_text(c.world_pos()+Vector2(0,-68),"+%dg ASSIST" % CombatParticipation.ASSIST_GOLD,Color("f4d481"),true)
 			victim.assist_hits.clear()
@@ -1153,8 +1162,8 @@ func _handle_death(killer, victim) -> void:
 					"+" + str(victim.gold_val) + "g", Color(1.0, 0.86, 0.2))
 			for c in GameState.champions:
 				if not c.dead and c.team != victim.team and c.global_position.distance_to(victim.world_pos()) <= 650:
-					var reward = victim.xp_val * 1.2
-					if c == killer: reward *= 1.25
+					var reward = victim.xp_val * Constants.MINION_SOAK_XP_MULTIPLIER
+					if c == killer: reward *= Constants.LAST_HIT_XP_MULTIPLIER
 					c.grant_xp(reward)
 		"structure":
 			victim.visible = false

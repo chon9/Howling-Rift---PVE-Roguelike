@@ -51,11 +51,11 @@ func _ready() -> void:
  helper.position=Vector2(0,0)
  victim.position=Vector2(1500,270);bystander.position=victim.position
  game._handle_death(killer,victim)
- check(helper.gold==gold+75 and helper.assists==count+1,"recent distant contributor earns small gold and assist")
+ check(helper.gold==gold+CombatParticipation.ASSIST_GOLD and helper.assists==count+1,"recent distant contributor earns small gold and assist")
  check(bystander.gold==by_gold and bystander.assists==0,"nearby bystander earns no assist")
  check(killer.assists==0,"killer never gets own assist")
  game._handle_death(killer,victim)
- check(helper.gold==gold+75,"duplicate death cannot duplicate rewards")
+ check(helper.gold==gold+CombatParticipation.ASSIST_GOLD,"duplicate death cannot duplicate rewards")
  game._respawn_champion(victim);victim.hp=10000.
  GameState.time=30.;game.deal_damage(helper,victim,10.,"magic")
  GameState.time=40.01;gold=helper.gold;game._handle_death(killer,victim)
@@ -64,16 +64,16 @@ func _ready() -> void:
  victim.shield=100.;game.deal_damage(helper,victim,10.,"auto")
  check(victim.assist_hits.has(1),"shield-absorbed attack still contributes")
  helper.dead=true;gold=helper.gold;game._handle_death(killer,victim)
- check(helper.gold==gold+75,"dead contributor still earns assist gold")
+ check(helper.gold==gold+CombatParticipation.ASSIST_GOLD,"dead contributor still earns assist gold")
  helper.dead=false;game._respawn_champion(victim);victim.hp=10000.;GameState.time=60.
  CombatEffects.shield(helper,"test_support",100.,3.,bystander)
  game.deal_damage(helper,victim,10.,"auto")
  gold=bystander.gold;game._handle_death(killer,victim)
- check(bystander.gold==gold+75 and bystander.assists==1,"shield support before damage earns assist")
+ check(bystander.gold==gold+CombatParticipation.ASSIST_GOLD and bystander.assists==1,"shield support before damage earns assist")
  game._respawn_champion(victim);victim.hp=10000.;helper.assist_support.clear();GameState.time=80.
  game.deal_damage(helper,victim,10.,"auto");HeroPassives.support(bystander,helper)
  gold=bystander.gold;game._handle_death(killer,victim)
- check(bystander.gold==gold+75,"support after recent damage earns assist")
+ check(bystander.gold==gold+CombatParticipation.ASSIST_GOLD,"support after recent damage earns assist")
  game._respawn_champion(victim);victim.hp=10000.;helper.assist_support.clear();victim.buffs.divine={"time":2.};GameState.time=100.
  game.deal_damage(helper,victim,10.,"magic");check(victim.assist_hits.is_empty(),"invulnerable target gives no contribution")
  victim.buffs.clear();game.deal_damage(helper,victim,0.,"magic");check(victim.assist_hits.is_empty(),"zero damage gives no contribution")

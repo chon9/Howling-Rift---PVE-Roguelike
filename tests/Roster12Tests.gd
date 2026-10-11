@@ -25,7 +25,7 @@ func _ready() -> void:
  game=load("res://scripts/Main.gd").new();add_child(game);game.set_process(false);game._start_game("leona")
  for c in GameState.champions:c.is_bot=false;c.stop_actions();c.global_position=Constants.FOUNT_B if c.team==0 else Constants.FOUNT_R
  enemy=GameState.champions[3];enemy.inventory=[];enemy._apply_items()
- check(ChampionData.CHAMPIONS.size()==30,"thirty selectable heroes")
+ check(ChampionData.CHAMPIONS.size()==32,"thirty-two selectable heroes")
  for key in RosterExpansion12.KEYS:
   var old=GameState.champions[0];hero=game.ChampionS.new();game.world_root.add_child(hero);hero.setup(0,key,false,"Test");GameState.champions[0]=hero;GameState.player=hero;old.queue_free();hero.inventory=[];hero._apply_items();hero.skill_ranks=[1,1,1,1]
   check(hero.hero.skills.size()==4,key+" four complete metadata records")

@@ -68,13 +68,13 @@ func run() -> void:
   check(load("res://assets/vfx/expansion-projectiles-v1.png")!=null,"exported new projectile sheet loads")
   var kit_art=load("res://scripts/KitEffectArt.gd")
   var roster12=load("res://scripts/RosterExpansion12.gd");var actions12=load("res://scripts/ActionSpriteArt.gd");var icons12=load("res://scripts/AbilityArt.gd")
-  check(root.get_node("ChampionData").CHAMPIONS.size()==30,"export has all thirty heroes")
+  check(root.get_node("ChampionData").CHAMPIONS.size()==32,"export has all thirty-two heroes")
   var passives=load("res://scripts/HeroPassives.gd");var portraits=load("res://scripts/HeroArt.gd")
   for hero in root.get_node("ChampionData").CHAMPIONS:
    check(passives.DATA.has(hero),"exported passive metadata "+hero)
    var portrait=portraits.texture_for(hero)
    check(portrait.filter_clip and is_equal_approx(portrait.get_width(),portrait.get_height()),"exported square portrait "+hero)
-  check(load("res://scripts/SteamSession.gd").PROTOCOL=="8","export uses PvP network protocol")
+  check(load("res://scripts/SteamSession.gd").PROTOCOL=="9","export uses PvP network protocol")
   game.spawn_aoe(state.player,state.player.world_pos(),{"effect_id":"xerath_q","radius":250.,"footprint_kind":"capsule","footprint_width":30.,"effect_dir":Vector2.DOWN})
   var beam_snapshot=load("res://scripts/LanSnapshot.gd").encode().aoes.back()
   check(beam_snapshot.footprint_kind=="capsule" and beam_snapshot.footprint_width==30. and beam_snapshot.effect_dir==Vector2.DOWN,"exported beam snapshot preserves its collision footprint")
@@ -113,7 +113,7 @@ func run() -> void:
   click.position=game.get_canvas_transform()*state.champions[3].world_pos()
   game._unhandled_input(click)
   check(game.pending_skill==-1 and state.projectiles.size()==before+1,"exported normal cast confirms a real spell")
-  check(root.get_node("ItemData").ITEMS.size()==76,"exported shop contains expanded tank and AD items")
+  check(root.get_node("ItemData").ITEMS.size()==84,"exported shop contains expanded tank and AD items")
   state.player.gold=10000
   check(state.player.try_buy_item("sunfire"),"exported tank item can be purchased")
   check(load("res://assets/ui/tank-ad-item-icons-v1.png")!=null,"exported new item art loads")
@@ -128,7 +128,7 @@ func run() -> void:
   check(load("res://assets/environment/frost-brush-v1.png")!=null,"exported painted brush asset loads")
   var crops=JSON.parse_string(FileAccess.get_file_as_string("res://assets/vfx/missile-crops-v1.json"))
   check(crops is Dictionary and crops.get("expansion",[]).size()==6,"exported projectile mapping metadata ships")
-  check(game.lane_augments.AUGMENTS.size()==30,"exported game has expanded role upgrade pool")
+  check(game.lane_augments.AUGMENTS.size()==33,"exported game has expanded role upgrade pool")
   check(root.get_node("ItemData").upgrades_for("long_sword").has("maw"),"exported upgrade browser includes later recipe descendants")
   state.player.inventory[0]="long_sword"
   var ui=game.hud.get_node("HudRoot");ui.refresh(0)
@@ -167,6 +167,19 @@ func run() -> void:
  var balance_before=profile.credits;var stash_before=profile.gear_stash.size();var claims_before=profile.daily.claimed.size()
  game._end_game(1)
  check(profile.credits==balance_before and profile.gear_stash.size()==stash_before and profile.daily.claimed.size()==claims_before,"exported PvP does not change PvE credits or loot")
- lan.leave();game.queue_free();await process_frame
+ lan.leave();game._return_to_main_menu()
+ game.network_config={"mode":"pve","allied_bots":true,"blue":["soraka","janna","ashe"],"red":["leesin","lux","darius"],"players":[{"peer":1,"slot":0,"name":"You","spells":["heal","ghost"],"bonuses":{}}]}
+ game._start_game("soraka");game.set_process(false)
+ var healer=state.champions[0];var guardian=state.champions[1];var ally=state.champions[2]
+ for c in state.champions:c.is_bot=false;c.stop_actions()
+ healer.global_position=Vector2(1200,270);guardian.global_position=Vector2(1230,270);ally.global_position=Vector2(1260,270);ally.hp=100.
+ healer.inventory=["forbidden_idol","ardent_censer","","","",""];healer._apply_items()
+ check(healer.try_cast_skill(1,ally.world_pos()) and ally.hp>100. and ally.buffs.has("ardent"),"exported Seren healing and support item procs work")
+ check(guardian.try_cast_skill(2,ally.world_pos()) and ally.shield>0.,"exported Galea shield works")
+ var support_art=load("res://scripts/SupportArt.gd");var support_kit_art=load("res://scripts/KitEffectArt.gd")
+ for id in support_art.ROWS:check(support_kit_art.has_effect(id) and support_kit_art.region(id,3).has_area() and support_kit_art.sheet(id)!=null,"exported support spell/attack art "+id)
+ check(load("res://scripts/LanSnapshot.gd").encode().champs[0].has("last_order_sequence"),"exported snapshots acknowledge predicted movement")
+ check(ProjectSettings.get_setting("application/config/version")=="0.6.5","export has correct release version")
+ game.queue_free();await process_frame
  print("STEAM EXPORT SMOKE: ",failures," failures")
  quit(1 if failures else 0)

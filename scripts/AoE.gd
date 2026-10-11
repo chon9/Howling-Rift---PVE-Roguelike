@@ -100,6 +100,11 @@ func _draw() -> void:
 func update_frame(delta: float) -> void:
 	elapsed += delta
 	if follows_src and is_instance_valid(src) and not src.dead:global_position=src.world_pos()
+	if zone_kind=="silence_field":
+		_support_silence(delta)
+		queue_redraw()
+		if elapsed>=duration:GameState.aoes.erase(self);queue_free()
+		return
 	if zone_kind in ["sphere","trap","heal_field","soul","dagger"]:
 		_roster_zone(delta)
 		queue_redraw()
@@ -232,3 +237,16 @@ func footprint() -> Dictionary:
 	if zone_kind=="box":return {"shape":"box","radius":radius}
 	if ring or zone_kind=="cage":return {"shape":"ring","radius":radius,"width":22. if ring else 10.,"outer_width":0. if ring else 10.}
 	return SkillFootprint.circle(radius,cone_ang,arc)
+
+func _support_silence(delta: float) -> void:
+	if not is_instance_valid(src):return
+	for unit in GameState.champions+GameState.minions:
+		if unit.dead or unit.team==team or unit.world_pos().distance_to(global_position)>radius+unit.size*.3:continue
+		if unit.buffs.has("cc_guard") or unit.buffs.has("spell_guard") or unit.buffs.has("parry"):continue
+		if not hit_set.has(unit):
+			NewHeroKits.hit(src,unit,dmg,"magic");hit_set.append(unit)
+		if unit.dead:continue
+		unit.buffs.silence={"time":.15}
+		if elapsed>=duration:
+			unit.buffs.root={"time":1.}
+			if unit.kind=="champion":unit.is_dashing=false

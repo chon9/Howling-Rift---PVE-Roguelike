@@ -61,6 +61,7 @@ var graphics_quality: CanvasLayer
 var kill_announcer
 
 func _ready() -> void:
+	Input.use_accumulated_input = false
 	if get_tree().current_scene == self: Progression.load_profile()
 	set_fullscreen(Progression.fullscreen_enabled, false)
 	add_to_group("game_main")
@@ -702,12 +703,15 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _issue_player_order(order: Dictionary) -> void:
 	if LanSession.is_client():
-		LanSession.send_command("order",order)
+		LanSession.send_command("order",ClientMovement.order(GameState.player,order))
 		return
 	_issue_champion_order(GameState.player,order)
 
 func _issue_champion_order(p, order: Dictionary) -> void:
 	if p == null or p.dead or GameState.paused or not GameState.running: return
+	p.manual_move = Vector2.ZERO
+	if p.buffs.has("monsoon"): SupportKits.cancel_channel(p)
+	p.last_order_sequence = int(order.get("sequence",p.last_order_sequence))
 	var destination = GameState.clamp_walkable(order.point)
 	if p.recall_time >= 0: p.recall_time = -1.0
 	var target = null
@@ -769,7 +773,17 @@ func _process(delta: float) -> void:
 		hud.get_node("HudRoot").refresh(delta)
 		return
 	if GameState.paused: return
-	delta = min(delta, 0.05)
+	# Subdivide long frames instead of discarding elapsed combat/movement time.
+	var remaining = minf(delta,0.15)
+	while remaining > 0.00001:
+		var step = minf(remaining,0.02)
+		_simulate_step(step)
+		remaining -= step
+	LanSession.replicate(delta)
+	_update_camera(delta)
+	hud.get_node("HudRoot").refresh(delta)
+
+func _simulate_step(delta: float) -> void:
 	GameState.time += delta
 
 	BrushVision.update_presentation()
@@ -800,10 +814,6 @@ func _process(delta: float) -> void:
 	for a in GameState.aoes.duplicate():
 		if is_instance_valid(a): a.update_frame(delta)
 
-	LanSession.replicate(delta)
-	_update_camera(delta)
-	hud.get_node("HudRoot").refresh(delta)
-
 func _update_camera(delta: float) -> void:
 	var sp = 540 * delta
 	var panned = false
@@ -821,7 +831,7 @@ func _update_camera(delta: float) -> void:
 	if panned: GameState.cam_locked = false
 	if GameState.cam_locked and GameState.player != null:
 		var target = GameState.player.global_position
-		GameState.cam_target = target if GameState.cam_target.distance_to(target) > 400 else GameState.cam_target.lerp(target, 1.0 - exp(-12.0 * delta))
+		GameState.cam_target = target if GameState.cam_target.distance_to(target) > 400 else GameState.cam_target.lerp(target, 1.0 - exp(-24.0 * delta))
 	else:
 		GameState.cam_target.x = clamp(GameState.cam_target.x, 0, Constants.WORLD_W)
 		GameState.cam_target.y = clamp(GameState.cam_target.y, 0, Constants.WORLD_H)
@@ -896,6 +906,7 @@ func _respawn_champion(c) -> void:
 	c.hp = c.hp_max; c.mp = c.mp_max; c.shield = 0; c.stun = 0
 	c.visible = true
 	c.buffs.clear()
+	c._apply_items()
 	c.buffs["haste"] = {"time": 5.0, "mult": 1.55}
 	c.manual_move = Vector2.ZERO
 	c.stop_actions()
@@ -924,8 +935,9 @@ func spawn_aoe(src, pos: Vector2, opts: Dictionary) -> void:
 	a.setup(src, pos, opts)
 	GameState.aoes.append(a)
 
-func floating_text(pos: Vector2, text: String, color: Color, big: bool = false) -> void:
-	LanSession.send_effect("text",null,pos,{"text":text,"color":color,"big":big})
+func floating_text(pos: Vector2, text: String, color: Color, big: bool = false, audience: Array = []) -> void:
+	LanSession.send_effect("text",null,pos,{"text":text,"color":color,"big":big,"audience":audience})
+	if not audience.is_empty() and not audience.has(multiplayer.get_unique_id()):return
 	var ft = FloatingTextS.new()
 	world_root.add_child(ft)
 	ft.setup(pos, text, color, big)
@@ -942,7 +954,7 @@ func spawn_impact(pos: Vector2, color: Color, size: float) -> void:
 	LanSession.send_effect("impact",null,pos,{"color":color,"size":size})
 	var imp = _ImpactFx.new()
 	imp.col = color
-	imp.start_sz = size
+	imp.start_sz = minf(size,14.)
 	imp.global_position = pos
 	imp.z_index = Constants.Z_FX
 	world_root.add_child(imp)
@@ -963,8 +975,7 @@ func on_level_up(c) -> void:
 	ring.z_index = Constants.Z_FX
 	world_root.add_child(ring)
 	# Big floating callout
-	floating_text(c.global_position + Vector2(0, -60),
-		"LEVEL %d" % c.level, Color(1.0, 0.86, 0.33), true)
+	if c.owner_peer>0:floating_text(c.global_position+Vector2(0,-60),"LEVEL %d" % c.level,Color(1.,.86,.33),true,[c.owner_peer])
 	# Celebrate the player's level-up with screen effects
 	if c == GameState.player:
 		# Burst of golden particles
@@ -977,10 +988,11 @@ func on_level_up(c) -> void:
 			p.z_index = Constants.Z_FX
 			world_root.add_child(p)
 
-func camera_shake(duration: float, amp: float) -> void:
+func camera_shake(duration: float, amp: float, origin = null) -> void:
+	if origin is Vector2 and camera.position.distance_to(origin)>550.:return
 	if duration <= 0.0 or amp <= 0.0: return
 	cam_shake_t = max(cam_shake_t, duration)
-	cam_shake_amp = max(cam_shake_amp, amp)
+	cam_shake_amp = minf(6.,max(cam_shake_amp, amp))
 	cam_shake_duration = cam_shake_t
 
 func _reset_camera_shake() -> void:
@@ -999,7 +1011,8 @@ func clear_aiming_skill() -> void:
 	if skill_aimer != null:
 		skill_aimer.clear_aim()
 
-func camera_flash(duration: float, color: Color) -> void:
+func camera_flash(duration: float, color: Color, origin = null) -> void:
+	if origin is Vector2 and camera.position.distance_to(origin)>550.:return
 	hud.get_node("HudRoot").flash(duration, color)
 
 # =============================================================================
@@ -1071,9 +1084,9 @@ func deal_damage(src, target, dmg: float, dmg_type: String, spell_id: String = "
 		var untracked_absorb=TankADCombat.consume_shield(target,absorb)
 		if target.kind=="champion" and target.hero_key=="malphite":target.passive_state.granite=maxf(0.,target.passive_state.get("granite",0.)-untracked_absorb)
 		target.shield -= absorb
+		if target.kind=="champion" and target.buffs.has("storm_shield") and target.buffs.storm_shield.shield<=0:target._apply_items()
 		dmg -= absorb
-		floating_text(target.world_pos() + Vector2(0, -20),
-			"-" + str(int(absorb)), Color(0.55, 0.73, 1.0))
+		if target.kind=="champion" and target.owner_peer>0:floating_text(target.world_pos()+Vector2(0,-20),"-"+str(int(absorb)),Color(.55,.73,1.),false,[target.owner_peer])
 	var health_damage=minf(maxf(0.,target.hp),dmg)
 	if dmg > 0:
 		if is_instance_valid(src) and src.kind=="champion" and src.inventory.has("collector") and target.kind=="champion" and dmg_type in ["auto","skill","magic","physical"] and target.hp-dmg>0 and target.hp-dmg<target.hp_max*.04:
@@ -1104,9 +1117,12 @@ func deal_damage(src, target, dmg: float, dmg_type: String, spell_id: String = "
 			"skill": col = Color(1.0, 0.71, 0.33)
 			"crit": col = Color(1.0, 0.47, 0.2)
 		# Human farming numbers stay visible; automated wave trading stays quiet.
-		if not hits_minion or (champion_hit and not src.is_bot and GameState.time>=target.next_damage_label):
+		var viewers=[]
+		if champion_hit and src.owner_peer>0:viewers.append(src.owner_peer)
+		if target.kind=="champion" and target.owner_peer>0 and not viewers.has(target.owner_peer):viewers.append(target.owner_peer)
+		if not viewers.is_empty() and (not hits_minion or GameState.time>=target.next_damage_label):
 			if hits_minion: target.next_damage_label = GameState.time+0.25
-			floating_text(target.world_pos()+Vector2(0,-20),"-"+str(int(dmg)),col,dmg_type == "exec" or dmg_type == "crit")
+			floating_text(target.world_pos()+Vector2(0,-20),"-"+str(int(dmg)),col,dmg_type in ["exec","crit"],viewers)
 		# Lifesteal — attacker heals on auto-attack damage
 		if dmg_type in ["auto","secondary_auto","attack_fragment"] and src != null and "bonus_lifesteal" in src and (src.bonus_lifesteal > 0 or src.buffs.has("iron_will")):
 			var restored = ExpansionCombat.healing_multiplier(src) * health_damage * (src.bonus_lifesteal + src.buffs.get("iron_will",{}).get("lifesteal",0.0))
@@ -1125,6 +1141,7 @@ func deal_damage(src, target, dmg: float, dmg_type: String, spell_id: String = "
 	if "buffs" in target and target.buffs.has("molten") and \
 			src != null and ("kind" in src) and src.kind == "champion" and dmg_type in ["auto","secondary_auto"]:
 		deal_damage(target, src, target.buffs["molten"]["reflect"], "reflect")
+	if is_instance_valid(src) and src.kind=="champion":SupportCombat.on_damage(src,target,dmg_type,damage_before_shield,cast_id)
 	HeroPassives.on_damage(src,target,"auto" if dmg_type=="secondary_auto" else dmg_type,damage_before_shield,cast_id,health_damage)
 	ExpansionCombat.after_hit(src,target,dmg_type)
 	if luden_proc>0 and target.hp>0 and not target.dead:deal_damage(src,target,luden_proc,"item_magic")
@@ -1161,7 +1178,7 @@ func _handle_death(killer, victim) -> void:
 				killer.kills += 1
 				killer.gold += Constants.HERO_KILL_GOLD
 				killer.grant_xp(Constants.HERO_KILL_XP + victim.level * Constants.HERO_KILL_XP_PER_LEVEL)
-				floating_text(killer.world_pos()+Vector2(0,-68),"+%dg KILL" % Constants.HERO_KILL_GOLD,Color("f4d481"),true)
+				if killer.owner_peer>0:floating_text(killer.world_pos()+Vector2(0,-68),"+%dg" % Constants.HERO_KILL_GOLD,Color("f4d481"),false,[killer.owner_peer])
 				TankADCombat.champion_kill(killer)
 			kill_announcer.register(killer,victim)
 			_log_kill(killer, victim)
@@ -1169,7 +1186,7 @@ func _handle_death(killer, victim) -> void:
 				c.gold += CombatParticipation.ASSIST_GOLD
 				c.grant_xp(Constants.ASSIST_XP + victim.level * Constants.ASSIST_XP_PER_LEVEL)
 				c.assists += 1
-				floating_text(c.world_pos()+Vector2(0,-68),"+%dg ASSIST" % CombatParticipation.ASSIST_GOLD,Color("f4d481"),true)
+				if c.owner_peer>0:floating_text(c.world_pos()+Vector2(0,-68),"+%dg ASSIST" % CombatParticipation.ASSIST_GOLD,Color("f4d481"),false,[c.owner_peer])
 			victim.assist_hits.clear()
 			if victim == GameState.player:
 				hud.get_node("HudRoot").show_death_overlay()
@@ -1179,8 +1196,7 @@ func _handle_death(killer, victim) -> void:
 			if killer != null and ("kind" in killer) and killer.kind == "champion":
 				killer.cs += 1
 				killer.gold += victim.gold_val
-				floating_text(victim.world_pos() + Vector2(0, -20),
-					"+" + str(victim.gold_val) + "g", Color(1.0, 0.86, 0.2))
+				if killer.owner_peer>0:floating_text(victim.world_pos()+Vector2(0,-20),"+"+str(victim.gold_val)+"g",Color(1.,.86,.2),false,[killer.owner_peer])
 			for c in GameState.champions:
 				if not c.dead and c.team != victim.team and c.global_position.distance_to(victim.world_pos()) <= 650:
 					var reward = victim.xp_val * Constants.MINION_SOAK_XP_MULTIPLIER
@@ -1334,7 +1350,7 @@ func spawn_beam(src, direction: Vector2, length: float, width: float, damage: fl
 	var beam = load("res://scripts/Beam.gd").new()
 	world_root.add_child(beam)
 	beam.setup(src, direction, length, width, damage, color)
-	camera_shake(0.2, 4)
+	camera_shake(0.2, 3,src.world_pos())
 
 # =============================================================================
 # END GAME
@@ -1384,11 +1400,13 @@ class _ImpactFx extends Node2D:
 	func _process(delta):
 		elapsed += delta
 		modulate.a = max(0.0, 1.0 - elapsed / life)
-		scale = Vector2.ONE * (1.0 + elapsed / life)
+		scale = Vector2.ONE * (1.0 + elapsed / life*.15)
 		queue_redraw()
 		if elapsed >= life: queue_free()
 	func _draw():
-		draw_circle(Vector2.ZERO, start_sz, Color(col.r, col.g, col.b, 0.8))
+		var atlas=CombatFeedbackArt.impact_texture()
+		var region=CombatFeedbackArt.frame(atlas,1,mini(3,int(elapsed/life*4.)),4)
+		draw_texture_rect_region(atlas,Rect2(-start_sz,-start_sz,start_sz*2.,start_sz*2.),region,Color(1,1,1,.75))
 
 class _TargetRing extends Node2D:
 	var life: float = 0.4

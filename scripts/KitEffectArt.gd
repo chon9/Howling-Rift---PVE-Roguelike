@@ -5,9 +5,11 @@ static var textures: Dictionary={}
 static var bounds: Dictionary={}
 static var ground_texture: Texture2D
 static func has_effect(id: String) -> bool:
+ if SupportArt.ROWS.has(id):return true
  if id.get_slice("_",0) in RosterExpansion12.KEYS:return id.get_slice("_",1) in ["q","w","e","r","auto"]
  return GROUPS.has(id.get_slice("_",0)) and id.get_slice("_",1) in ["q","w","e","r"]
 static func sheet(id: String) -> Texture2D:
+ if SupportArt.ROWS.has(id):return SupportArt.sheet()
  if id.get_slice("_",0) in RosterExpansion12.KEYS:return Roster12Art.sheet(id)
  if id in ["veigar_w","veigar_e"]:
   if ground_texture==null:ground_texture=load("res://assets/vfx/vexel-ground-v2.png")
@@ -16,6 +18,7 @@ static func sheet(id: String) -> Texture2D:
  if not textures.has(group):textures[group]=load("res://assets/vfx/"+group+"-skills-v1.png")
  return textures[group]
 static func region(id: String,frame: int) -> Rect2:
+ if SupportArt.ROWS.has(id):return SupportArt.region(id,frame)
  if id.get_slice("_",0) in RosterExpansion12.KEYS:return Roster12Art.region(id,frame)
  if id in ["veigar_w","veigar_e"]:
   var cell=sheet(id).get_size()/Vector2(4,2)

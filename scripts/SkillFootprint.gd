@@ -48,7 +48,7 @@ static func draw_clipped(canvas: CanvasItem,texture: Texture2D,region: Rect2,rec
   canvas.draw_colored_polygon(points,tint,uv,texture)
 
 # Explicit impact geometry, separate from cast/target acquisition range.
-const AREA_RADII={"lux_e":120.,"annie_r":200.,"yasuo_r":140.,"leesin_e":170.,"zed_e":135.,"katarina_w":140.,"katarina_r":140.,"garen_e":72.,"darius_q":165.,"malphite_e":165.,"malphite_r":160.,"veigar_w":150.,"veigar_e":155.,"morgana_w":145.,"morgana_r":230.,"leona_w":165.,"leona_r":145.,"blitzcrank_r":230.,"renekton_q":160.,"renekton_r":140.,"xinzhao_r":220.,"riven_q":110.,"riven_w":125.,"caitlyn_w":35.,"brand_w":140.,"syndra_q":110.,"xerath_w":145.,"xerath_r":130.}
+const AREA_RADII={"soraka_q":105.,"soraka_e":120.,"janna_r":240.,"lux_e":120.,"annie_r":200.,"yasuo_r":140.,"leesin_e":170.,"zed_e":135.,"katarina_w":140.,"katarina_r":140.,"garen_e":72.,"darius_q":165.,"malphite_e":165.,"malphite_r":160.,"veigar_w":150.,"veigar_e":155.,"morgana_w":145.,"morgana_r":230.,"leona_w":165.,"leona_r":145.,"blitzcrank_r":230.,"renekton_q":160.,"renekton_r":140.,"xinzhao_r":220.,"riven_q":110.,"riven_w":125.,"caitlyn_w":35.,"brand_w":140.,"syndra_q":110.,"xerath_w":145.,"xerath_r":130.}
 const SHOT_SIZES={"lux_q":10.,"ahri_q":13.,"ahri_e":12.,"ezreal_q":8.,"ezreal_w":11.,"ezreal_r":30.,"ashe_r":16.,"zed_q":10.,"jinx_w":10.,"jinx_r":24.,"kayle_q":10.,"caitlyn_q":12.,"riven_r":20.}
 const SHOT_REACH={"lux_q":585.,"ahri_q":520.,"ahri_e":585.,"ezreal_q":680.,"ezreal_w":585.,"ezreal_r":1430.,"ashe_r":2800.,"zed_q":975.,"jinx_w":787.5,"jinx_r":1800.,"kayle_q":975.,"morgana_q":637.5,"thresh_q":750.,"leesin_q":712.5,"sivir_q":648.}
 static func preview(c,skill: Dictionary) -> Dictionary:
@@ -77,6 +77,7 @@ static func preview(c,skill: Dictionary) -> Dictionary:
   result=circle(190. if is_instance_valid(target) and target.buffs.has("blaze") else 95.);result.at="target";result.reach=reach
  if id=="jinx_e":result={"shape":"traps","radius":32.,"at":"cursor","reach":reach}
  if id=="ashe_w":result=circle(930.,0.,.72);result.at="cone";result.reach=reach
+ if id=="janna_r":result=circle(240.);result.at="self";result.reach=reach
  if id=="lux_w":result=circle(250.);result.at="self";result.reach=reach
  if id=="ahri_w":result=circle(420.);result.at="self";result.reach=reach
  if id=="sivir_r":result=circle(450.);result.at="self";result.reach=reach

@@ -96,6 +96,9 @@ var bonus_armor_pen: float = 0.0
 var bonus_magic_pen: float = 0.0
 var bonus_lethality: float = 0.0
 var bonus_reflect: float = 0.0       # flat damage reflected on auto-hits
+var bonus_heal_power: float = 0.0
+var bonus_mp_regen: float = 0.0
+var last_order_sequence: int = 0
 var bonus_hp_regen: float = 0.0      # extra HP regen/sec
 # Bot auto-buy state
 var bot_build_idx: int = 0
@@ -294,7 +297,7 @@ func _draw() -> void:
 	var tnow = Time.get_ticks_msec() / 1000.0
 
 	# Ult-ready aura (when R is learned, ready, and we have mana)
-	if skill_ranks.size() > 3 and skill_ranks[3] > 0 and skill_cds[3] <= 0 and mp >= hero["skills"][3]["cost"]:
+	if self==GameState.player and skill_ranks.size() > 3 and skill_ranks[3] > 0 and skill_cds[3] <= 0 and mp >= hero["skills"][3]["cost"]:
 		var ap = 0.5 + 0.5 * sin(tnow * 3.0)
 		draw_arc(Vector2.ZERO, (34 + ap * 3)*Constants.CHAMP_GROUND_MARK_SCALE, 0, TAU, 48,
 			Color(1.0, 0.86, 0.33, 0.5 + 0.3 * ap), 2.0, true)
@@ -426,7 +429,7 @@ func _recompute_stats() -> void:
 	base_mr = hero.get("mr", 35.0 if auto_type == "melee" else 30.0) + 1.25 * lv_
 	ad = hero["ad"] + hero["ad_per_lv"] * lv_ + bonus_ad
 	hp_regen = hero["hp_regen"] + hero["hp_regen_per_lv"] * lv_ + bonus_hp_regen
-	mp_regen = 10. if hero_key in ["leesin","zed"] else (hero["mp_regen"] + hero["mp_regen_per_lv"] * lv_) * 1.25
+	mp_regen = 10. if hero_key in ["leesin","zed"] else (hero["mp_regen"] + hero["mp_regen_per_lv"] * lv_) * 1.25 + bonus_mp_regen
 	if prev_hp > 0:
 		hp = min(hp_max, hp + (hp_max - prev_hp))
 	if prev_mp > 0:
@@ -439,6 +442,7 @@ func _apply_items() -> void:
 	bonus_cdr = 0; bonus_ap = 0
 	bonus_armor = 0; bonus_reflect = 0; bonus_hp_regen = 0
 	bonus_crit = 0; bonus_crit_damage = 0
+	bonus_heal_power = 0; bonus_mp_regen = 0
 	bonus_mr=0;bonus_armor_pen=0;bonus_magic_pen=0;bonus_lethality=0
 	for id in inventory:
 		if id == "": continue
@@ -460,6 +464,8 @@ func _apply_items() -> void:
 				"bonus_magic_pen": bonus_magic_pen = maxf(bonus_magic_pen,v)
 				"bonus_lethality": bonus_lethality += v
 				"bonus_reflect":   bonus_reflect += v
+				"bonus_heal_power": bonus_heal_power += v
+				"bonus_mp_regen": bonus_mp_regen += v
 				"bonus_hp_regen":  bonus_hp_regen += v
 				"bonus_crit": bonus_crit += v
 				"bonus_crit_damage": bonus_crit_damage += v
@@ -473,7 +479,9 @@ func _apply_items() -> void:
 		set(stat, get(stat) + permanent_bonus[stat])
 	bonus_cdr = min(bonus_cdr, 0.4)
 	if inventory.has("archangel"): bonus_ap += (hero.mp + hero.mp_per_lv * (level - 1) + bonus_mp) * 0.025 if hero.mp>0 and hero_key not in ["leesin","zed"] else 0.
+	if buffs.get("storm_shield",{}).get("shield",0.)>0:bonus_ad+=buffs.storm_shield.get("ad",0.)
 	if inventory.has("rabadon"): bonus_ap *= 1.3
+	if buffs.has("flowing"):bonus_ap+=20.
 	if hero_key=="syndra" and passive_state.get("transcendent_ap",false):bonus_ap*=1.15
 	_recompute_stats()
 	if dead: hp = 0
@@ -613,7 +621,7 @@ func grant_xp(amount: float) -> void:
 
 # ============== Buffs helpers ==============
 func effective_move_speed() -> float:
-	var m = move_speed * (1.0 + bonus_ms) * difficulty_stats.get("speed", 1.0)
+	var m = move_speed * SupportCombat.move_multiplier(self) * (1.0 + bonus_ms) * difficulty_stats.get("speed", 1.0)
 	if buffs.has("haste"): m *= buffs["haste"]["mult"]
 	if buffs.has("ghost"): m *= buffs.ghost.mult
 	if inventory.has("force_nature") and buffs.has("nature_guard"): m *= 1.08
@@ -624,7 +632,7 @@ func effective_attack_range() -> float:
 	return HeroPassives.attack_range(self,attack_target) + (100 if buffs.has("rockets") else 0) + (40 if buffs.has("exile") else 0)
 
 func effective_atk_spd() -> float:
-	var m = atk_spd * (1.0 + bonus_as) * difficulty_stats.get("attack_speed", 1.0) * HeroPassives.attack_speed(self)
+	var m = atk_spd * (1.0 + bonus_as + (.2 if buffs.has("ardent") else 0.)) * difficulty_stats.get("attack_speed", 1.0) * HeroPassives.attack_speed(self)
 	if buffs.has("roster_as"): m *= buffs.roster_as.mult
 	if buffs.has("focus"): m *= 1.4
 	if buffs.has("cripple"): m *= .8
@@ -641,10 +649,12 @@ func try_cast_skill(idx: int, pt: Vector2) -> bool:
 		LanSession.send_command("skill",{"index":idx,"point":pt})
 		return true
 	if dead or stun > 0: return false
+	if buffs.has("monsoon") and idx!=3: return false
 	if buffs.has("silence"): return false
 	if buffs.has("parry") or (buffs.has("artillery") and idx!=3) or (buffs.has("culling") and idx!=3):return false
 	var look = (pt-world_pos()).normalized()
-	if NewHeroKits.recast(self,idx,pt):
+	var rooted_dash = buffs.has("root") and ((hero_key in ["leesin","thresh","riven"] and idx==0) or (hero_key=="renekton" and idx==2) or (hero_key=="zed" and idx==1))
+	if not rooted_dash and NewHeroKits.recast(self,idx,pt):
 		if look.length_squared()>0.01: facing = look
 		HeroPassives.on_cast(self,idx)
 		BrushVision.reveal(self)
@@ -657,6 +667,7 @@ func try_cast_skill(idx: int, pt: Vector2) -> bool:
 			global_position, "Not learned", Color(1,1,0.3), false); return false
 	if skill_cds[idx] > 0: return false
 	var sk = hero["skills"][idx]
+	if buffs.has("root") and sk.cast_id in ["ezreal_e","ahri_r","yasuo_e","leesin_w","katarina_e","zed_r","malphite_r","vayne_q","riven_q","riven_e","renekton_e","xinzhao_e","fiora_q","lucian_e"]:return false
 	if sk.kind=="passive":return false
 	if mp < sk["cost"]:
 		get_tree().call_group("game_main", "floating_text",
@@ -685,10 +696,11 @@ func try_cast_skill(idx: int, pt: Vector2) -> bool:
 	if recall_time >= 0: recall_time = -1.0
 	if not (hero_key=="caitlyn" and idx==3):
 		get_tree().call_group("game_main", "play_sfx", "ultimate" if idx == 3 else "spell", self)
-	if hero_key != "yasuo" and not ExpansionRoster.KEYS.has(hero_key) and not hero_key in RosterExpansion12.KEYS: get_tree().call_group("game_main", "spawn_spell_burst", self, global_position, 45.0 if idx != 3 else 70.0)
+	if hero_key != "yasuo" and not ExpansionRoster.KEYS.has(hero_key) and not hero_key in RosterExpansion12.KEYS and not hero_key in SupportRoster.KEYS: get_tree().call_group("game_main", "spawn_spell_burst", self, global_position, 45.0 if idx != 3 else 70.0)
 	return true
 
 func _dispatch_cast(cast_id: String, pt: Vector2) -> bool:
+	if hero_key in SupportRoster.KEYS: return SupportKits.cast(self,cast_id,pt)
 	if hero_key in RosterExpansion12.KEYS: return Roster12Kits.cast(self,cast_id,pt)
 	if ExpansionRoster.KEYS.has(hero_key): return ExpansionKits.cast(self,cast_id,pt)
 	match cast_id:
@@ -824,7 +836,7 @@ func _ashe_r(pt: Vector2) -> void:
 	var dmg = 150.0 + 100.0 * rank(3) + ad * 0.6
 	_spawn_projectile(dir, dmg, 700, Color(0.4, 1.0, 1.0), 16, 0, 4.0,
 		1.5 + rank(3) * 0.3, 0.0, 0.0, true, 0.0, null, true, false, "ice")
-	get_tree().call_group("game_main", "camera_shake", 0.2, 4.0)
+	get_tree().call_group("game_main", "camera_shake", 0.2, 4.0,world_pos())
 
 # ----- Annie -----
 func _annie_q(pt: Vector2) -> bool:
@@ -842,7 +854,7 @@ func _annie_w(pt: Vector2) -> void:
 	var cx = global_position
 	_spawn_aoe(cx, 300, 70.0 + 30.0 * rank(1) + ad * 0.3,
 		Color(1.0, 0.2, 0.0), 0.5, ang, 1.2)
-	get_tree().call_group("game_main", "camera_shake", 0.08, 2.0)
+	get_tree().call_group("game_main", "camera_shake", 0.08, 2.0,world_pos())
 
 func _annie_e() -> void:
 	CombatEffects.shield(self,"molten_shield",50.0 + 30.0 * rank(2),3.)
@@ -852,8 +864,8 @@ func _annie_r(pt: Vector2) -> void:
 	_spawn_aoe(pt, 200, 150.0 + 125.0 * rank(3) + ad * 0.3,
 		Color(1.0, 0.27, 0.0), 0.6)
 	get_tree().call_group("game_main", "spawn_tibbers", self, pt)
-	get_tree().call_group("game_main", "camera_shake", 0.4, 8.0)
-	get_tree().call_group("game_main", "camera_flash", 0.3, Color(1.0, 0.59, 0.2))
+	get_tree().call_group("game_main", "camera_shake", 0.4, 8.0,world_pos())
+	get_tree().call_group("game_main", "camera_flash", 0.3, Color(1.0, 0.59, 0.2),world_pos())
 
 # ----- Garen -----
 func _garen_q() -> void:
@@ -878,8 +890,8 @@ func _garen_r(pt: Vector2) -> bool:
 	var dmg = base + missing * (0.2 + 0.05 * rank(3))
 	_spawn_aoe(e.global_position, 90, 0, Color(1.0, 1.0, 0.4), 0.4)
 	get_tree().call_group("game_main", "deal_damage", self, e, dmg, "exec")
-	get_tree().call_group("game_main", "camera_shake", 0.3, 6.0)
-	get_tree().call_group("game_main", "camera_flash", 0.2, Color(1.0, 0.9, 0.6))
+	get_tree().call_group("game_main", "camera_shake", 0.3, 6.0,world_pos())
+	get_tree().call_group("game_main", "camera_flash", 0.2, Color(1.0, 0.9, 0.6),world_pos())
 	return true
 
 # ============== Per-frame update called by Main ==============
@@ -894,6 +906,8 @@ func update_frame(delta: float) -> void:
 	ForcedMotion.tick(self,delta)
 	ExpansionKits.tick(self,delta)
 	ExpansionCombat.tick(self,delta)
+	SupportKits.tick(self,delta)
+	SupportCombat.tick(self,delta)
 	Roster12Combat.tick(self,delta)
 	HeroPassives.tick(self,delta)
 	if dead:return
@@ -914,6 +928,7 @@ func update_frame(delta: float) -> void:
 		ExpansionCombat.expire(self,k)
 		var value = buffs[k].duplicate()
 		buffs.erase(k)
+		if k in ["flowing","storm_shield"]:_apply_items()
 		NewHeroKits.expire(self,k,value)
 
 
@@ -962,10 +977,11 @@ func update_frame(delta: float) -> void:
 					animator.cancel_attack()
 					atk_cd = 0
 
-	if buffs.has("artillery") or buffs.has("parry") or buffs.has("deadeye"):
+	if buffs.has("artillery") or buffs.has("parry") or buffs.has("deadeye") or buffs.has("monsoon"):
 		_sync_bars();queue_redraw();return
 
 	# Dash
+	if buffs.has("root"):is_dashing=false
 	if is_dashing:
 		dash_target = GameState.clamp_walkable(dash_target)
 		var d = global_position.distance_to(dash_target)
@@ -1030,17 +1046,17 @@ func update_frame(delta: float) -> void:
 			if distance > 0.01: facing = offset.normalized()
 			if atk_cd <= 0 and (not steering or is_bot):
 				queued_auto_target = attack_target
-				auto_windup = clampf(0.22/effective_atk_spd(),0.08,0.28)
+				auto_windup = clampf(0.18/effective_atk_spd(),0.07,0.24)
 				attack_pulse = 0.6
 				animator.begin_attack(auto_windup)
 				atk_cd = 1.0/effective_atk_spd()
 
 	# Movement
-	if steering and not is_dashing:
+	if steering and not is_dashing and queued_auto_target == null and not buffs.has("root"):
 		facing = manual_move.normalized()
 		global_position += manual_move.limit_length() * effective_move_speed() * delta
 		has_move_target = false
-	elif has_move_target and not is_dashing:
+	elif has_move_target and not is_dashing and not buffs.has("root"):
 		var dir = move_target - global_position
 		var d = dir.length()
 		if d < 3:
@@ -1058,7 +1074,7 @@ func update_frame(delta: float) -> void:
 	var moved = global_position.distance_squared_to(_last_pos)
 	_dust_cooldown -= delta
 	if moved > 4.0 and _dust_cooldown <= 0.0:
-		_dust_cooldown = 0.14
+		_dust_cooldown = 0.3
 		get_tree().call_group("game_main", "spawn_trail",
 			global_position + Vector2.ZERO, Color(0.6, 0.52, 0.4, 0.5), 5.0)
 	_last_pos = global_position
@@ -1069,6 +1085,7 @@ func update_frame(delta: float) -> void:
 		get_tree().call_group("game_main", "deal_damage",
 			{"team": 1 - team, "kind": "fountain"}, self, 500 * delta, "skill")
 
+	if is_bot: BotTactics.space(self,delta)
 	_sync_bars()
 	queue_redraw()
 
@@ -1192,6 +1209,7 @@ func estimate_kill_damage(target) -> float:
 			"garen_e": value = (12 + 8 * r + ad * 0.4) * minf(4.0, window * 2)
 			"garen_r":
 				if target.hp < target.hp_max * 0.4: value = 150 + 150 * r + (target.hp_max - target.hp) * (0.2 + 0.05 * r)
+		if hero_key in SupportRoster.KEYS and ((hero_key=="soraka" and i in [0,2]) or (hero_key=="janna" and i in [0,1])):value=SupportKits.amount(self,i)
 		if hero_key in RosterExpansion12.KEYS and sk.cast_id not in ["riven_e","fiora_r"]:value=Roster12Kits.amount(self,sk.cast_id)
 		if ExpansionKits.FORMULAS.has(sk.cast_id) and sk.cast_id not in ["darius_w","malphite_w","morgana_e","thresh_w","vayne_q","vayne_r"]:
 			value = ExpansionKits.amount(self,sk.cast_id)
@@ -1201,7 +1219,7 @@ func estimate_kill_damage(target) -> float:
 			if sk.cast_id == "veigar_r": value *= 1.0+minf(1.,(1.0-target.hp/target.hp_max)*1.5)
 		if value > 0:
 			mana -= sk.cost
-			var kind = "skill"
+			var kind = "magic" if hero_key in SupportRoster.KEYS else "skill"
 			if hero_key in RosterExpansion12.KEYS:kind="physical" if Roster12Kits.physical(self) else "magic"
 			if ExpansionRoster.KEYS.has(hero_key): kind = "physical" if hero_key in ["darius","vayne"] else "magic"
 			if sk.cast_id in ["darius_r","garen_r"]: kind = "exec"
@@ -1259,21 +1277,7 @@ func _run_bot_ai(delta: float) -> void:
 		if chase_target.dead or not BrushVision.visible_to(chase_target,team) or GameState.time > chase_until or global_position.distance_to(chase_origin) > difficulty_stats.get("vision", 440.0) + 180 or not can_secure_kill(chase_target) or not _safe_pursuit(chase_target):
 			chase_target = null
 			chase_rest_until = GameState.time + 2.0
-	var closest_champ = null
-	var best_score = -INF
-	for enemy in GameState.champions:
-		if enemy == null or enemy.team == team or enemy.dead or not BrushVision.visible_to(enemy,team): continue
-		var distance = global_position.distance_to(enemy.world_pos())
-		if distance > difficulty_stats.get("vision", 440.0): continue
-		var finishable = can_secure_kill(enemy) and _safe_pursuit(enemy) and GameState.time >= chase_rest_until
-		if distance > atk_range + 60 and not finishable: continue
-		if low_hp and not finishable: continue
-		if not _safe_pursuit(enemy): continue
-		var score = (1000.0 if finishable else 0.0) + (1.0 - enemy.hp / enemy.hp_max) * 250 - distance
-		if enemy == chase_target: score += 150
-		if score > best_score:
-			best_score = score
-			closest_champ = enemy
+	var closest_champ = BotTactics.select_target(self)
 	if closest_champ != null and can_secure_kill(closest_champ) and GameState.time >= chase_rest_until:
 		if chase_target != closest_champ:
 			chase_origin = global_position
@@ -1291,6 +1295,7 @@ func _run_bot_ai(delta: float) -> void:
 		attack_target = null
 		return
 
+	var supported = SupportKits.bot_support(self)
 	# Poke from spell range while farming instead of waiting for autoattack range.
 	if closest_champ == null and not low_hp:
 		var poke_target = null
@@ -1301,7 +1306,7 @@ func _run_bot_ai(delta: float) -> void:
 			if distance < poke_distance:
 				poke_distance = distance
 				poke_target = enemy
-		if poke_target != null: _try_bot_cast(poke_target)
+		if poke_target != null and not supported: _try_bot_cast(poke_target)
 
 	# Short, purposeful flank waits; bots leave rather than camping forever.
 	if closest_champ==null and not low_hp:
@@ -1318,15 +1323,18 @@ func _run_bot_ai(delta: float) -> void:
 
 	# Nearest enemy minion in sight
 	var near_minion = null
-	var m_dist = 220.0
+	var m_score = -INF
 	for m in GameState.minions:
 		if m == null or m.team == team or m.dead: continue
 		var d = global_position.distance_to(m.world_pos())
-		if d < m_dist and BotSafety.can_enter(self,BotSafety.approach(self,m)): m_dist = d; near_minion = m
+		if d>220. or not BotSafety.can_enter(self,BotSafety.approach(self,m)):continue
+		var score=(160. if m.hp<=GameState.last_hit_damage(self,m) else 0.)-d
+		if m==attack_target:score+=20.
+		if score>m_score:m_score=score;near_minion=m
 
 	var target = closest_champ if closest_champ != null else near_minion
 
-	if closest_champ != null:
+	if closest_champ != null and not supported:
 		_try_bot_cast(closest_champ)
 
 	if target != null:
@@ -1359,17 +1367,18 @@ func _try_bot_cast(target) -> void:
 	if not is_instance_valid(target) or target.dead: return
 	var distance = global_position.distance_to(target.world_pos())
 	var order = {"ashe": [3, 1, 0, 2], "annie": [3, 0, 1, 2], "garen": [3, 0, 2, 1], "lux": [0, 2, 3, 1], "ahri": [2, 0, 1, 3], "ezreal": [1, 0, 3, 2]}.get(hero_key,hero.priority)
-	if hero_key == "thresh" and not NewHeroKits.recast_info(self,0).is_empty(): try_cast_skill(0,target.world_pos())
-	if hero_key == "leesin" and is_instance_valid(sonic_target) and sonic_target == target and distance <= 650 and BotSafety.can_enter(self,target.world_pos(),target.kind == "champion"): try_cast_skill(0,target.world_pos())
-	if hero_key == "zed" and buffs.has("shadow") and not buffs.shadow.swapped and distance > 180 and hp > hp_max*0.5: try_cast_skill(1,target.world_pos())
+	if hero_key == "thresh" and not NewHeroKits.recast_info(self,0).is_empty() and try_cast_skill(0,target.world_pos()):return
+	if hero_key == "leesin" and is_instance_valid(sonic_target) and sonic_target == target and distance <= 650 and BotSafety.can_enter(self,target.world_pos(),target.kind == "champion") and try_cast_skill(0,target.world_pos()):return
+	if hero_key == "zed" and buffs.has("shadow") and not buffs.shadow.swapped and distance > 180 and hp > hp_max*0.5 and try_cast_skill(1,target.world_pos()):return
 	if hero_key in RosterExpansion12.KEYS:
 		for i in range(4):
 			if not Roster12Kits.recast_info(self,i).is_empty():
-				if hero_key != "xerath" or i != 0 or buffs.arcanopulse.time < .5: try_cast_skill(i,target.world_pos())
+				if (hero_key != "xerath" or i != 0 or buffs.arcanopulse.time < .5) and try_cast_skill(i,target.world_pos()):return
 	var casts = 0
 	for i in order:
 		if skill_ranks[i] <= 0 or skill_cds[i] > 0: continue
 		var sk = hero.skills[i]
+		if (hero_key=="soraka" and i in [1,3]) or (hero_key=="janna" and i in [2,3]): continue
 		if hero_key in RosterExpansion12.KEYS and sk.kind == "self" and distance > (atk_range+40 if i==0 or sk.cast_id in ["blitzcrank_e","fiora_e","sivir_w"] else 210): continue
 		if mp < sk.cost or (sk.range > 0 and distance > sk.range): continue
 		match sk.cast_id:
@@ -1418,7 +1427,7 @@ func _try_bot_cast(target) -> void:
 			if not BotSafety.can_enter(self,landing,hp>=hp_max*0.45): continue
 		if try_cast_skill(i, point):
 			casts += 1
-			if casts >= 2: break
+			if casts >= 1: break
 	if summoner_cds[1] <= 0 and can_secure_kill(target) and distance < 240:
 		ai_ignite_target = target
 		get_tree().call_group("game_main", "cast_summoner", self, 1)
@@ -1434,6 +1443,7 @@ func _make_spin_aura() -> Node2D:
 
 func start_recall() -> void:
 	if LanSession.is_local(self):
+		ClientMovement.cancel()
 		LanSession.send_command("recall")
 		return
 	if dead or stun > 0: return
@@ -1451,6 +1461,7 @@ func start_recall() -> void:
 
 func stop_actions() -> void:
 	if LanSession.is_local(self):
+		ClientMovement.cancel()
 		LanSession.send_command("stop")
 		return
 	cancel_auto()

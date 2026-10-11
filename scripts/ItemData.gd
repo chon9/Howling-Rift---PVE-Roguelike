@@ -14,6 +14,9 @@ func _ready() -> void:
  ORDER.append_array(TankADItems.KEYS)
  BUILD_ORDERS.merge(TankADItems.BUILDS,true)
  BUILD_ORDERS.merge(RosterExpansion12.builds(),true)
+ ITEMS.merge(SupportItems.items())
+ ORDER.append_array(SupportItems.KEYS)
+ BUILD_ORDERS.merge(SupportItems.builds(),true)
  ITEMS.merge(MatchTraining.items())
  ORDER.append_array(MatchTraining.KEYS)
 var ITEMS = {
@@ -372,7 +375,7 @@ var ITEMS = {
 }
 
 var ORDER = ["long_sword", "bf_sword", "infinity_edge", "bloodthirster", "amp_tome", "needlessly_rod", "rabadon", "archangel", "ruby_crystal", "giants_belt", "warmog", "chain_vest", "thornmail", "boots", "berserker_greaves", "sorcerer_shoes", "dagger", "cloak", "cloth_armor", "sapphire_crystal", "vampiric_scepter", "kindlegem", "recurve_bow", "sheen", "blade_ruined_king", "ludens"]
-const CATEGORIES = [{"id":"all","label":"All items"}, {"id":"recommended","label":"Recommended"}, {"id":"ad","label":"Attack"}, {"id":"ap","label":"Magic"}, {"id":"hp","label":"Health"}, {"id":"def","label":"Defense"}, {"id":"boot","label":"Boots"}, {"id":"consumable","label":"Stat consumables"}]
+const CATEGORIES = [{"id":"all","label":"All items"}, {"id":"recommended","label":"Recommended"}, {"id":"ad","label":"Attack"}, {"id":"ap","label":"Magic"}, {"id":"hp","label":"Health"}, {"id":"def","label":"Defense"}, {"id":"boot","label":"Boots"}, {"id":"support","label":"Support"},{"id":"consumable","label":"Stat consumables"}]
 var BUILD_ORDERS = {
  "yasuo":["long_sword","boots","berserker_greaves","infinity_edge","bloodthirster","blade_ruined_king","thornmail"],
  "leesin":["long_sword","boots","vampiric_scepter","berserker_greaves","bloodthirster","warmog","thornmail"],
@@ -428,6 +431,7 @@ func matches_category(id: String, category: String) -> bool:
   "ap": return item.cat == "ap" or stats.get("bonus_ap",0)>0 or stats.get("bonus_magic_pen",0)>0
   "hp": return stats.get("bonus_hp",0)>0 or stats.get("bonus_hp_regen",0)>0
   "def": return item.cat == "def" or stats.get("bonus_armor",0)>0 or stats.get("bonus_mr",0)>0 or id in ["sterak","locket"]
+  "support": return item.cat == "support" or id in ["locket","spirit_visage","kindlegem","boots","mercury_treads"]
   "boot": return item.cat == "boot"
  return false
 

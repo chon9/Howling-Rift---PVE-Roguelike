@@ -12,8 +12,8 @@ func _ready() -> void:
  await get_tree().process_frame
  GameState.reset();Progression.persistent=false;Progression.levels.clear()
  var game=load("res://scripts/Main.gd").new();add_child(game);game.set_process(false)
- check(ChampionData.CHAMPIONS.size()==30,"thirty selectable heroes")
- check(ItemData.ITEMS.size()==76 and ItemData.ORDER.size()==76,"seventy-six unique shop entries")
+ check(ChampionData.CHAMPIONS.size()==32,"thirty-two selectable heroes")
+ check(ItemData.ITEMS.size()==84 and ItemData.ORDER.size()==84,"eighty-four unique shop entries")
  var first=MatchRoster.enemy_team(["ashe","garen","lux"])
  var second=MatchRoster.enemy_team(["ashe","garen","lux"])
  for key in second:check(not first.has(key) and not ["ashe","garen","lux"].has(key),"consecutive enemy lineups avoid repeats and allied mirrors")

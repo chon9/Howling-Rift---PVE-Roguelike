@@ -2,6 +2,7 @@ class_name HeroPassives
 extends RefCounted
 # Host-only gameplay. Permanent match counters live separately from expiring buffs.
 const DATA={
+ "soraka":SupportRoster.PASSIVES.soraka,"janna":SupportRoster.PASSIVES.janna,
  "lux":["Illumination","Damaging spells mark for 6s. Your next attack or R consumes the mark for level-scaled magic damage, then R refreshes it."],
  "ahri":["Essence Theft","Every 9 minion kills restores health. A champion takedown you contributed to restores more health."],
  "ezreal":["Rising Spell Force","Spell hits grant 10% attack speed for 6s, up to 5 stacks. Q also refunds 1.5s from all skill cooldowns."],

@@ -9,7 +9,7 @@ func check(condition: bool, description: String) -> void:
 
 func _ready() -> void:
 	await get_tree().process_frame
-	check(ChampionData.CHAMPIONS.size() == 30, "thirty selectable champions")
+	check(ChampionData.CHAMPIONS.size() == 32, "thirty-two selectable champions")
 	for key in ["lux", "ahri", "ezreal"]:
 		GameState.reset()
 		var game = load("res://scripts/Main.gd").new()

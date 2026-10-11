@@ -8,6 +8,10 @@ static func icon_for(index: int) -> AtlasTexture:
  texture.region = Rect2(Vector2(index%6, index/6)*cell + Vector2(3,3), cell-Vector2(6,6))
  return texture
 static func item_icon(id: String):
+ if id in SupportItems.KEYS:
+  var texture=AtlasTexture.new();texture.atlas=load("res://assets/ui/support-item-icons-v1.png")
+  var cell=texture.atlas.get_size()/Vector2(4,2);var index=SupportItems.KEYS.find(id)
+  texture.region=Rect2(Vector2(index%4,index/4)*cell+Vector2.ONE*12,cell-Vector2.ONE*24);texture.filter_clip=true;return texture
  if MatchTraining.KEYS.has(id): return item_icon(MatchTraining.icon_source(id))
  if TankADItems.KEYS.has(id):
   var texture=AtlasTexture.new();texture.atlas=load("res://assets/ui/tank-ad-item-icons-v1.png")

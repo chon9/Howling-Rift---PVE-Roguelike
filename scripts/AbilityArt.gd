@@ -9,6 +9,7 @@ static var cache: Dictionary = {}
 static var extended: Texture2D = preload("res://assets/ui/extended-ability-icons.png")
 
 static func icon_for(hero_key: String, index: int) -> Texture2D:
+	if hero_key in SupportRoster.KEYS:return SupportArt.icon(hero_key,index+1)
 	if hero_key in RosterExpansion12.KEYS:return Roster12Art.icon(hero_key,index+1)
 	if ExpansionRoster.KEYS.has(hero_key): return HeroArt.expansion_icon(hero_key,index+1)
 	if HeroArt.KEYS.has(hero_key) and index >= 0 and index < 4:

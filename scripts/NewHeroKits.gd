@@ -32,6 +32,7 @@ static func sonic_mark_target(c):
  return null
 static func recast_info(c, index: int) -> Dictionary:
  if c.dead: return {}
+ if c.hero_key in SupportRoster.KEYS:return SupportKits.recast_info(c,index)
  if c.hero_key in RosterExpansion12.KEYS:return Roster12Kits.recast_info(c,index)
  if c.hero_key=="thresh" and index==0:
   for unit in GameState.champions+GameState.minions:
@@ -47,6 +48,7 @@ static func recast_info(c, index: int) -> Dictionary:
   return {"time":float(c.buffs.shadow.time),"duration":4.0,"label":"W2 SWAP","available":true}
  return {}
 static func recast(c, index: int, point: Vector2) -> bool:
+ if c.hero_key in SupportRoster.KEYS:return SupportKits.recast(c,index)
  if c.hero_key in RosterExpansion12.KEYS:return Roster12Kits.recast(c,index,point)
  if c.hero_key=="thresh" and index==0:
   var info=recast_info(c,index)

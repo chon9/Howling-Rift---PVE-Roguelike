@@ -24,7 +24,7 @@ func _ready() -> void:
  GameState.reset();Progression.persistent=false;Progression.difficulty=1;Progression.levels.clear()
  game=load("res://scripts/Main.gd").new();add_child(game);game.set_process(false);game._start_game("garen")
  p=GameState.player;enemy=GameState.champions[3]
- check(ItemData.ORDER.size()==76 and ItemData.ITEMS.size()==76,"shop contains seventy-six unique items")
+ check(ItemData.ORDER.size()==84 and ItemData.ITEMS.size()==84,"shop contains eighty-four unique items")
  for id in TankADItems.KEYS:
   var item=ItemData.ITEMS[id]
   check(ShopArt.item_icon(id)!=null,"painted icon loads: "+id)

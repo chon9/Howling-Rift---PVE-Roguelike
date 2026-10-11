@@ -34,7 +34,7 @@ func _ready() -> void:
  await get_tree().process_frame
  Progression.persistent=false;Progression.levels.clear();Progression.difficulty=1;GameState.reset()
  game=load("res://scripts/Main.gd").new();add_child(game);game.set_process(false);game._start_game("lux")
- check(ChampionData.CHAMPIONS.size()==30 and ItemData.ITEMS.size()==76,"complete roster and catalog")
+ check(ChampionData.CHAMPIONS.size()==32 and ItemData.ITEMS.size()==84,"complete roster and catalog")
  for key in ChampionData.CHAMPIONS:
   for action in ["idle","run","attack","q","w","e","r","hit","death","recall"]:
    for frame in range(6):
@@ -45,7 +45,7 @@ func _ready() -> void:
     reset(key,rank);var skill=hero.hero.skills[index];var id=skill.cast_id
     check(AbilityArt.icon_for(key,index)!=null,id+" icon")
     check(not ChampionData.skill_description(key,index,hero).is_empty(),id+" description")
-    var point=enemy.world_pos()
+    var point=GameState.champions[1].world_pos() if id in ["soraka_w","janna_e"] else enemy.world_pos()
     if id=="yasuo_r":HeroControl.airborne(enemy,2.)
     if id=="syndra_w":Roster12Kits.visual(hero,point,"syndra_q",38,6.,{"zone_kind":"sphere"})
     if skill.kind=="passive":
@@ -60,10 +60,11 @@ func _ready() -> void:
     if id=="darius_e":observed=enemy.buffs.has("forced_motion")
     var recast=NewHeroKits.recast_info(hero,index)
     if not recast.is_empty() and recast.available:hero.try_cast_skill(index,point)
+    if id in ["soraka_w","soraka_r","janna_e","janna_r"]:observed=observed or GameState.champions[1].shield>0 or GameState.champions[1].hp>100.
     if id in EMPOWER:
      for n in range(3):hero._perform_auto(enemy)
     advance(3.3)
-    if id not in UTILITY:check(enemy.hp<100000.,id+" produces real combat damage")
+    if id not in UTILITY and id not in ["soraka_w","soraka_r","janna_e","janna_r"]:check(enemy.hp<100000.,id+" produces real combat damage")
     else:check(observed,id+" creates its utility effect")
     await get_tree().process_frame
   reset(key)

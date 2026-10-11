@@ -63,6 +63,8 @@ func configure_presentation() -> void:
 	var width = clampf(size*3.8,22.0,body_height*(0.85 if is_ult else 0.60))
 	if damage_type in ["auto","secondary_auto","attack_fragment"] and hero: width=body_height*0.32
 	visual_dimensions=Vector2(width,width*(0.44 if is_ult else 0.58))
+	if effect_id=="janna_q":visual_dimensions=Vector2(58,36)
+	if effect_id=="janna_w":visual_dimensions=Vector2(32,12)
 	if is_vesper_bolt():
 		visual_dimensions=Vector2(28,9) if effect_id=="vayne_auto" else Vector2(34,12)
 func visual_rect() -> Rect2:
@@ -116,6 +118,7 @@ func setup(_src, pos: Vector2, _dir: Vector2, opts: Dictionary) -> void:
 		art_row = ExpansionRoster.KEYS.find(src.hero_key)
 	if is_instance_valid(src) and src.kind=="champion" and src.hero_key=="vayne" and damage_type=="auto":
 		effect_id="vayne_auto"
+	if src.kind=="champion" and src.hero_key in SupportRoster.KEYS and damage_type=="auto":effect_id=src.hero_key+"_auto"
 	if src.kind=="champion" and src.hero_key in RosterExpansion12.KEYS and damage_type=="auto":effect_id=src.hero_key+"_auto"
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	configure_presentation()
@@ -262,6 +265,7 @@ func update_frame(delta: float) -> void:
 	if is_instance_valid(homing) and not homing.dead:
 		var want = (homing.world_pos() - global_position).normalized()
 		dir = dir.lerp(want, 1.0-exp(-13.4*delta)).normalized()
+	var before = global_position
 	global_position += dir * speed * delta
 	rotation = dir.angle()
 	life -= delta
@@ -292,7 +296,8 @@ func update_frame(delta: float) -> void:
 		if hit_set.has(u): continue
 		if u == null or u.dead or u.team == team or not u.is_targetable: continue
 		if u.kind == "structure" and not u.is_structure_attackable(): continue
-		var dd = global_position.distance_to(u.world_pos())
+		var contact = Geometry2D.get_closest_point_to_segment(u.world_pos(),before,global_position)
+		var dd = contact.distance_to(u.world_pos())
 		if dd < size + u.size * 0.7:
 			if "buffs" in u and u.buffs.has("parry") and stun_time>0:u.buffs.parry.blocked_cc=true
 			var payload=Roster12Combat.special_damage(effect_id,src,u,dmg,cast_origin) if special_hit else dmg
@@ -326,7 +331,7 @@ func update_frame(delta: float) -> void:
 				src.mp = min(src.mp_max, src.mp + refund_mp_on_kill)
 			hit_set.append(u)
 			# Minion contact is handled once in damage resolution with a tiny spark.
-			if u.kind != "minion": get_tree().call_group("game_main", "spawn_impact", global_position, color, size * 2)
+			if u.kind == "structure": get_tree().call_group("game_main", "spawn_impact", global_position, color, minf(12.,size))
 			if pierce <= 0:
 				_destroy(); return
 			pierce -= 1

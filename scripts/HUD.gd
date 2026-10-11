@@ -865,6 +865,7 @@ func refresh(delta: float) -> void:
 	player_cs.text = "CS %d" % player.cs
 	player_gold.text = "%dg  [P]" % int(player.gold)
 	combat_stats.text = "AD  %d   AP  %d\nAS  %.2f\nARM %d  MR %d\nMS  %d" % [int(player.ad),int(player.bonus_ap),player.effective_atk_spd(),int(ExpansionCombat.resist(player,null,"auto")),int(ExpansionCombat.resist(player,null,"magic")),int(player.effective_move_speed())]
+	combat_stats.tooltip_text = "Heal / shield power: +%.0f%%\nMana regeneration: %.1f per second\nHealing reduction and healing received apply after outgoing power." % [player.bonus_heal_power*100.,player.mp_regen]
 	player_kda.text = "%d/%d/%d" % [player.kills, player.deaths, player.assists]
 	# Skill point chip
 	if player.skill_points > 0:

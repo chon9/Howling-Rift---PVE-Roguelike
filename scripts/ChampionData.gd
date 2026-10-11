@@ -14,6 +14,7 @@ func skill_description(key: String, index: int, champion = null) -> String:
 	var numbers = preload("res://scripts/SkillScaling.gd").description(skill.cast_id,champion.skill_ranks[index] if champion != null else 1,champion)
 	if ExpansionRoster.KEYS.has(key): numbers = ExpansionKits.description(skill.cast_id,champion,champion.skill_ranks[index] if champion != null else 1)
 	if key in RosterExpansion12.KEYS: numbers = Roster12Kits.description(skill.cast_id,champion,champion.skill_ranks[index] if champion != null else 1)
+	if key in SupportRoster.KEYS: numbers = SupportKits.description(skill.cast_id,champion,champion.skill_ranks[index] if champion != null else 1)
 	var reach = "Self" if skill.range <= 0 else "%d units" % int(skill.range)
 	return "%s  •  %s%s\n\n%s\n\n%s: %d  •  Cooldown: %.1fs  •  Range: %s" % [skill.key, skill.name, rank_text, skill.desc+"\n\n"+numbers+recast_text, "Energy" if key in ["leesin","zed"] else "Mana", skill.cost, cooldown, reach]
 # Autoload: ChampionData — stat tables + skill metadata for each champion.
@@ -23,6 +24,7 @@ func skill_description(key: String, index: int, champion = null) -> String:
 func _ready() -> void:
 	CHAMPIONS.merge(ExpansionRoster.heroes())
 	CHAMPIONS.merge(RosterExpansion12.heroes())
+	CHAMPIONS.merge(SupportRoster.heroes())
 	for key in CHAMPIONS:
 		CHAMPIONS[key]["passive"]=HeroPassives.DATA[key]
 		if key in ["yasuo","katarina","riven","renekton","garen"]:

@@ -73,6 +73,7 @@ func overhead_statuses() -> Array:
  var result=[];var seen={}
  if not primary_status.is_empty():seen[primary_status.id]=true
  for status in statuses:
+  if unit!=GameState.player and status.id in ["haste","empower","heal","guard"]:continue
   if not seen.has(status.id):result.append(status);seen[status.id]=true
  return result
 
@@ -84,8 +85,8 @@ func _draw() -> void:
  var head_y=-height-56. if hero else unit.art_rect().position.y-24.
  var lift=HeroControl.lift(unit)
  if not DeadeyeCue.channel(unit).is_empty() or not DeadeyeCue.locks_on(unit).is_empty():head_y-=40.
- if shield_amount>0:_sprite("shield",Rect2(-height*.66,-height*1.12-lift,height*1.32,height*1.32),.85+shield_pulse*.3)
- if statuses.any(func(status):return status.id=="guard"):_sprite("guard",Rect2(-height*.69,-height*1.15-lift,height*1.38,height*1.38),.8)
+ if shield_amount>0:_sprite("shield",Rect2(-height*.66,-height*1.12-lift,height*1.32,height*1.32),.42+shield_pulse*.5)
+ if statuses.any(func(status):return status.id=="guard"):_sprite("guard",Rect2(-height*.69,-height*1.15-lift,height*1.38,height*1.38),.45)
  if statuses.any(func(status):return status.id=="burn"):
   # Flames stay at the body edges; they do not obscure the torso or health bar.
   for side in [-1.,1.]:_sprite("burn",Rect2(side*height*.32-height*.18,-height*.45-lift,height*.36,height*.48),.75)
@@ -94,15 +95,15 @@ func _draw() -> void:
   var width=font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,12).x+16
   _badge(text,head_y-lift,StatusArt.color(primary_status.id))
   _sprite(primary_status.id,Rect2(-width/2-29,head_y-24-lift,28,28))
- var items=overhead_statuses();var limit=5 if hero else 3;var count=mini(items.size(),limit)
- var row_y=head_y-54.-lift if not primary_status.is_empty() else head_y-22.-lift
+ var items=overhead_statuses();var limit=2 if hero else 1;var count=mini(items.size(),limit)
+ var row_y=head_y-34.-lift if not primary_status.is_empty() else head_y-22.-lift
  # Avoid stacking status icons onto Deadeye/channel captions.
  if not DeadeyeCue.channel(unit).is_empty() or not DeadeyeCue.locks_on(unit).is_empty() or unit.buffs.has("artillery") or unit.buffs.has("arcanopulse") or unit.buffs.has("parry") or unit.buffs.has("roster_attack"):row_y-=48.
  for i in range(count):
   var status=items[i];var x=(float(i)-(count-1)*.5)*29.
   draw_circle(Vector2(x,row_y+12),13,Color(.02,.035,.06,.9))
   _sprite(status.id,Rect2(x-12,row_y,24,24))
-  var text="%.1f" % status.time if status.time>0 and status.time<10 else ("%d" % ceili(status.time) if status.time>0 and status.time<100 else "")
+  var text=""
   if status.stacks>0:text="x%d" % status.stacks
   var width=font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,9).x
   draw_string_outline(font,Vector2(x-width/2,row_y+30),text,HORIZONTAL_ALIGNMENT_LEFT,-1,9,2,Color.BLACK)

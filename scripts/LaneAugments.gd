@@ -3,6 +3,7 @@ extends Node
 
 const MILESTONES = [4, 6, 8, 10, 12, 14, 16, 18]
 const AUGMENTS = [
+
 	{"name": "Rapid Fire", "desc": "+25% attack speed", "stats": {"bonus_as": 0.25}},
 	{"name": "Spellweaver", "desc": "+30 ability power", "stats": {"bonus_ap": 30.0}},
 	{"name": "Vampiric Edge", "desc": "+10% lifesteal and +8 attack damage", "stats": {"bonus_lifesteal": 0.1, "bonus_ad": 8.0}},
@@ -32,7 +33,10 @@ const AUGMENTS = [
 	{"name": "Skirmish Runner", "desc": "Rolled combat stats", "role": "bruiser", "stats": {"bonus_ad": 14.0, "bonus_ms": 0.07}},
 	{"name": "Sustained Fighter", "desc": "Rolled combat stats", "role": "bruiser", "stats": {"bonus_ad": 12.0, "bonus_hp_regen": 4.0}},
 	{"name": "Precision Rhythm", "desc": "Rolled combat stats", "role": "marksman", "stats": {"bonus_as": 0.2, "bonus_crit": 0.08}},
-	{"name": "Sharpened Edge", "desc": "Rolled combat stats", "role": "marksman", "stats": {"bonus_ad": 20.0, "bonus_crit": 0.07}}
+	{"name": "Sharpened Edge", "desc": "Rolled combat stats", "role": "marksman", "stats": {"bonus_ad": 20.0, "bonus_crit": 0.07}},
+ {"name":"Blessed Hands","desc":"Rolled support stats","role":"support","stats":{"bonus_heal_power":.1,"bonus_ap":15.}},
+ {"name":"Enduring Grace","desc":"Rolled support stats","role":"support","stats":{"bonus_heal_power":.07,"bonus_hp":150.}},
+ {"name":"Mana Spring","desc":"Rolled support stats","role":"support","stats":{"bonus_mp_regen":3.,"bonus_cdr":.05}}
 ]
 
 var main
@@ -227,6 +231,7 @@ func choose(index: int) -> void:
 	refresh_attention()
 
 func role_for(c) -> String:
+	if c.hero_key in SupportRoster.KEYS:return "support"
 	if c.hero_key in RosterExpansion12.KEYS:return RosterExpansion12.role(c.hero_key)
 	if c.hero_key in ["garen","malphite","thresh"]: return "tank"
 	if c.hero_key in ["darius","leesin","yasuo","zed"]: return "bruiser"
@@ -245,10 +250,10 @@ func roll_choices(c) -> Array:
 	return result
 func roll_offer(index: int, level: int) -> Dictionary:
 	var result=AUGMENTS[index].duplicate(true)
-	var labels={"bonus_ad":"AD","bonus_ap":"AP","bonus_hp":"HP","bonus_mp":"mana","bonus_armor":"armor","bonus_mr":"magic resist","bonus_as":"attack speed","bonus_ms":"move speed","bonus_crit":"crit chance","bonus_cdr":"cooldown reduction","bonus_lifesteal":"lifesteal","bonus_hp_regen":"HP regen/s"}
+	var labels={"bonus_ad":"AD","bonus_ap":"AP","bonus_hp":"HP","bonus_mp":"mana","bonus_armor":"armor","bonus_mr":"magic resist","bonus_as":"attack speed","bonus_ms":"move speed","bonus_crit":"crit chance","bonus_cdr":"cooldown reduction","bonus_lifesteal":"lifesteal","bonus_hp_regen":"HP regen/s","bonus_heal_power":"heal/shield power","bonus_mp_regen":"mana regen/s"}
 	var lines=[]
 	for stat in result.stats:
-		var percent=stat in ["bonus_as","bonus_ms","bonus_crit","bonus_cdr","bonus_lifesteal"]
+		var percent=stat in ["bonus_as","bonus_ms","bonus_crit","bonus_cdr","bonus_lifesteal","bonus_heal_power"]
 		var value=float(result.stats[stat])*rng.randf_range(.85,1.2)*(1.+.025*maxi(0,level-4))
 		value=roundf(value*100.)/100. if percent else roundf(value)
 		result.stats[stat]=value

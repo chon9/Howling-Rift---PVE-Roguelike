@@ -8,7 +8,7 @@ static func missile_sheet(expansion: bool = false) -> Texture2D:
 	if not expansion: return missiles
 	if expansion_missiles == null: expansion_missiles = load("res://assets/vfx/expansion-projectiles-v1.png")
 	return expansion_missiles
-const ROWS = {"ashe":0, "annie":1, "garen":2, "lux":3, "ahri":4, "ezreal":5, "yasuo":0, "leesin":2, "zed":4, "jinx":5, "katarina":1, "kayle":3,"darius":2,"malphite":5,"veigar":4,"morgana":4,"vayne":0,"thresh":3}
+const ROWS = {"soraka":3,"janna":0,"ashe":0, "annie":1, "garen":2, "lux":3, "ahri":4, "ezreal":5, "yasuo":0, "leesin":2, "zed":4, "jinx":5, "katarina":1, "kayle":3,"darius":2,"malphite":5,"veigar":4,"morgana":4,"vayne":0,"thresh":3}
 
 static func row_for(source) -> int:
 	return ROWS.get(source.hero_key, 5) if is_instance_valid(source) and source.kind == "champion" else -1

@@ -25,7 +25,7 @@ func _ready() -> void:
  ui.shop_panel.view_upgrades("rabadon");check(ui.shop_panel.grid.get_child(0) is Label and ui.shop_panel.upgrades_button.disabled,"finished item has clear no-upgrades state")
  ui.close_shop()
  var draft=game.lane_augments;draft.rng.seed=12345
- check(draft.AUGMENTS.size()==30,"thirty level-up templates cover varied playstyles")
+ check(draft.AUGMENTS.size()==33,"thirty-three level-up templates cover varied playstyles")
  for hero in ["malphite","lux","darius","ashe"]:
   p.hero_key=hero
   var choices=draft.roll_choices(p)

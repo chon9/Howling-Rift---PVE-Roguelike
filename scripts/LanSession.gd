@@ -66,6 +66,7 @@ func leave(forget_reconnect: bool=true) -> void:
  if was_steam: previous_peer.close()
  SteamSession.leave()
  transport = "lan"
+ ClientMovement.clear()
  players.clear(); draft_states.clear(); positions.clear()
  replica_minions.clear(); replica_projectiles.clear(); replica_aoes.clear()
  motion_samples.clear(); incoming_frames.clear(); snapshot_sequence=0; last_snapshot_sequence=-1; snapshot_received_at=0.
@@ -280,7 +281,7 @@ func _command(kind: String, data: Dictionary) -> void:
  if c == null: return
  var now = Time.get_ticks_msec()
  var stamp = str(sender)+kind
- if now-int(last_commands.get(stamp,0)) < 15: return
+ if kind!="order" and now-int(last_commands.get(stamp,0)) < 15: return
  last_commands[stamp] = now
  execute(c,kind,data)
 func execute(c, kind: String, data: Dictionary) -> void:
@@ -291,7 +292,7 @@ func execute(c, kind: String, data: Dictionary) -> void:
  var index = int(data.get("index",-1))
  match kind:
   "order":
-   if data.get("type") in ["smart","amove"]: main._issue_champion_order(c,{"type":data.type,"point":point})
+   if data.get("type") in ["smart","amove"]: main._issue_champion_order(c,{"type":data.type,"point":point,"sequence":clampi(int(data.get("sequence",0)),0,2147483647)})
   "skill":
    if index >= 0 and index < 4: c.try_cast_skill(index,point)
   "summoner":
@@ -407,6 +408,7 @@ func smooth_positions(delta: float) -> void:
   if node is Champion and (node.dead or node.stun>0):sample={}
   var target=positions[node]+sample.get("velocity",Vector2.ZERO)*age
   if node is Champion or node is Minion:target=GameState.clamp_walkable(target)
+  if node==GameState.player and ClientMovement.tick(node,delta,target):continue
   var rate=45. if node==GameState.player else 32.
   node.global_position=node.global_position.lerp(target,1.-exp(-delta*rate))
 func _process(delta: float) -> void:
@@ -423,6 +425,7 @@ func _process(delta: float) -> void:
 func send_effect(kind: String, actor, point: Vector2, data: Dictionary = {}) -> void:
  if not is_host() or not GameState.started or not GameState.running: return
  for peer in registered_peers():
+  if data.has("audience") and not data.audience.is_empty() and not data.audience.has(peer):continue
   _effect.rpc_id(peer,kind,GameState.champions.find(actor),point,data)
 @rpc("authority","call_remote","unreliable",2)
 func _effect(kind: String, actor_index: int, point: Vector2, data: Dictionary) -> void:

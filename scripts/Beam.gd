@@ -33,6 +33,9 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var alpha = maxf(0, life / 0.4)
 	draw_texture_rect_region(SpellArt.missiles, Rect2(Vector2(0, -width), Vector2(length, width * 2)), SpellArt.frame(SpellArt.missiles, art_row, mini(7, int((0.4 - life) * 20))), Color(1, 1, 1, alpha))
-	draw_line(Vector2.ZERO, Vector2(length, 0), Color(color.r, color.g, color.b, alpha * 0.2), width * 2.5, true)
+	draw_line(Vector2.ZERO, Vector2(length, 0), Color(color.r, color.g, color.b, alpha * 0.2), width * 2., true)
+	draw_set_transform(Vector2(length*.5,0))
+	SkillFootprint.draw_outline(self,{"shape":"rectangle","length":length,"width":width},Color(color,alpha*.65))
+	draw_set_transform(Vector2.ZERO)
 	draw_line(Vector2.ZERO, Vector2(length, 0), Color(color.r, color.g, color.b, alpha), width, true)
 	draw_line(Vector2.ZERO, Vector2(length, 0), Color(1, 1, 1, alpha), width * 0.2, true)

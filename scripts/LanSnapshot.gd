@@ -30,7 +30,7 @@ static func encode() -> Dictionary:
   packet.projectiles.append({"id":p.get_instance_id(),"source":target_ref(p.src),"team":p.team,"damage_type":p.damage_type,"position":p.global_position,"rotation":p.rotation,"dir":p.dir,"size":p.size,"color":p.color,"shape":p.shape,"art_row":p.art_row,"expansion_art":p.expansion_art,"is_ult":p.is_ult,"animation_time":p.animation_time,"hook_chain":p.hook_chain,"effect_id":p.effect_id,"wind_kind":p.wind_kind,"visual_height":p.visual_height,"visual_dimensions":p.visual_dimensions,"visual_scale":p.visual_scale})
  for a in GameState.aoes:
   if not is_instance_valid(a): continue
-  packet.aoes.append({"id":a.get_instance_id(),"source":target_ref(a.src),"position":a.global_position,"radius":a.radius,"duration":a.duration,"elapsed":a.elapsed,"cone_ang":a.cone_ang,"arc":a.arc,"color":a.color,"art_row":a.art_row,"wind_kind":a.wind_kind,"ring":a.ring,"effect_id":a.effect_id,"effect_dir":a.effect_dir,"zone_kind":a.zone_kind,"arm_delay":a.arm_delay,"readable_boundary":a.readable_boundary,"broken_walls":a.broken_walls.duplicate(),"team":a.team})
+  packet.aoes.append({"id":a.get_instance_id(),"source":target_ref(a.src),"position":a.global_position,"radius":a.radius,"duration":a.duration,"elapsed":a.elapsed,"cone_ang":a.cone_ang,"arc":a.arc,"color":a.color,"art_row":a.art_row,"wind_kind":a.wind_kind,"ring":a.ring,"effect_id":a.effect_id,"effect_dir":a.effect_dir,"zone_kind":a.zone_kind,"arm_delay":a.arm_delay,"readable_boundary":a.readable_boundary,"footprint_kind":a.footprint_kind,"footprint_width":a.footprint_width,"broken_walls":a.broken_walls.duplicate(),"team":a.team})
  return packet
 static func restore_buffs(buffs: Dictionary) -> Dictionary:
  var result = buffs.duplicate(true)

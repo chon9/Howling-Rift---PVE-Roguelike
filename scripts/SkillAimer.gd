@@ -49,73 +49,30 @@ func _draw() -> void:
 	else: cursor_dir = cursor_dir.normalized()
 	# Clamp to range for the aim point
 	var aim_pt = ppos + cursor_dir * min(cursor_dist, rng if rng > 0 else cursor_dist)
-	if sk.cast_id=="thresh_e":
-		var across=cursor_dir.orthogonal()*65
-		var along=cursor_dir*220
-		var corners=PackedVector2Array([ppos-along-across,ppos+along-across,ppos+along+across,ppos-along+across])
-		draw_colored_polygon(corners,Color(atk_col,.18))
-		corners.append(corners[0]);draw_polyline(corners,atk_col,2.,true)
-		draw_line(ppos-cursor_dir*100,ppos+cursor_dir*100,atk_col,3.,true)
-		draw_line(ppos+cursor_dir*100,ppos+cursor_dir*75+across*.3,atk_col,3.,true)
-		draw_line(ppos+cursor_dir*100,ppos+cursor_dir*75-across*.3,atk_col,3.,true)
-		return
-	if sk.cast_id=="thresh_r":
-		var corners=PackedVector2Array()
-		for i in range(6):corners.append(ppos+Vector2.from_angle(-PI/2+i*TAU/5)*180)
-		draw_polyline(corners,atk_col,3.,true)
-		return
-	match kind:
-		"line":
-			# Narrow line to aim point
-			var perp = Vector2(-cursor_dir.y, cursor_dir.x) * 12
-			var pts = PackedVector2Array([
-				ppos + perp, aim_pt + perp,
-				aim_pt - perp, ppos - perp
-			])
-			draw_colored_polygon(pts, Color(atk_col.r, atk_col.g, atk_col.b, 0.25))
-			# Volley specifically has a fan shape (9 arrows at 0.09 rad)
-			if sk["cast_id"] == "ashe_w":
-				var base_ang = cursor_dir.angle()
-				var span = 0.09 * 4.0
-				var fan = PackedVector2Array([ppos])
-				for i in range(17):
-					var t = float(i) / 16.0
-					var a = base_ang - span + span * 2 * t
-					fan.append(ppos + Vector2(cos(a), sin(a)) * rng)
-				draw_colored_polygon(fan, Color(atk_col.r, atk_col.g, atk_col.b, 0.18))
-		"cone":
-			# Cone centered on aim direction (~1.2 rad spread like Annie W)
-			var base_ang = cursor_dir.angle()
-			var span = 0.6
-			var cx = ppos + cursor_dir * (rng * 0.5)
-			var fan = PackedVector2Array([ppos])
-			for i in range(17):
-				var t = float(i) / 16.0
-				var a = base_ang - span + span * 2 * t
-				fan.append(ppos + Vector2(cos(a), sin(a)) * rng)
-			draw_colored_polygon(fan, Color(atk_col.r, atk_col.g, atk_col.b, 0.25))
-			# Cone AoE circle at mid
-			draw_arc(cx, 180.0 * 0.5, 0, TAU, 32, atk_col, 2.0, true)
-		"point", "target":
-			# Circle at aim point
-			var impact_r = 90.0
-			if sk.cast_id=="veigar_w":impact_r=150.
-			elif sk.cast_id=="veigar_e":impact_r=155.
-			elif sk["cast_id"] == "annie_r": impact_r = 200.0
-			elif sk["cast_id"] == "garen_r": impact_r = 60.0
-			if sk.cast_id in ["veigar_w","veigar_e"]:
-				var preview=KitEffectArt.ground_rect(sk.cast_id,impact_r)
-				preview.position+=aim_pt
-				draw_texture_rect_region(KitEffectArt.sheet(sk.cast_id),preview,KitEffectArt.region(sk.cast_id,0),Color(1,1,1,.55))
-			draw_arc(aim_pt, impact_r, 0, TAU, 48,
-				Color(atk_col.r, atk_col.g, atk_col.b, 0.9), 2.0, true)
-			draw_circle(aim_pt, impact_r,
-				Color(atk_col.r, atk_col.g, atk_col.b, 0.15))
-		"self":
-			# Just show the AoE/self circle around champion
-			draw_arc(ppos, max(rng, 70.0), 0, TAU, 48, atk_col, 2.0, true)
-			draw_circle(ppos, max(rng, 70.0),
-				Color(atk_col.r, atk_col.g, atk_col.b, 0.1))
+	var footprint=SkillFootprint.preview(player,sk)
+	if footprint.shape=="none":return
+	var origin=ppos
+	var angle=0.
+	match footprint.at:
+		"cursor","target":
+			origin=aim_pt
+			if kind=="target":
+				var victim=NewHeroKits.target(player,mouse,rng)
+				if is_instance_valid(victim):origin=victim.world_pos()
+		"line":origin=ppos+cursor_dir*footprint.length*.5;angle=cursor_dir.angle()
+		"direction":angle=cursor_dir.angle()
+		"wall":origin=ppos+cursor_dir*50.;angle=cursor_dir.angle()
+		"cone":footprint.angle=cursor_dir.angle()
+	draw_set_transform(origin,angle)
+	if footprint.shape=="traps":
+		for offset in [-50,0,50]:
+			draw_set_transform(origin+Vector2(offset,0))
+			SkillFootprint.draw_outline(self,SkillFootprint.circle(footprint.radius),atk_col,true)
+	else:SkillFootprint.draw_outline(self,footprint,atk_col,true)
+	if sk.cast_id=="xinzhao_w":
+		draw_set_transform(ppos)
+		SkillFootprint.draw_outline(self,SkillFootprint.circle(125.,cursor_dir.angle(),PI*.65),line_col,true)
+	draw_set_transform(Vector2.ZERO)
 
 func _draw_dashed_arc(center: Vector2, radius: float, pts: int, col: Color,
 		width: float, on_segs: int, off_segs: int) -> void:

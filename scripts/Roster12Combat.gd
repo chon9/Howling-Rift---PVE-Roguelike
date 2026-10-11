@@ -18,7 +18,7 @@ static func line_hit(c,start: Vector2,end: Vector2,id: String,width: float,slow:
 static func release_beam(c,point: Vector2) -> void:
  var b=c.buffs.arcanopulse;var reach=350.+400.*clampf((1.5-b.time)/1.5,0.,1.);var dir=(point-c.world_pos()).normalized()
  line_hit(c,c.world_pos(),c.world_pos()+dir*reach,"xerath_q",30)
- Roster12Kits.visual(c,c.world_pos()+dir*reach*.5,"xerath_q",reach*.5,.3,{"effect_dir":dir})
+ Roster12Kits.visual(c,c.world_pos()+dir*reach*.5,"xerath_q",reach*.5,.3,{"effect_dir":dir,"footprint_kind":"capsule","footprint_width":30.})
 static func blocked(src,target,kind: String) -> bool:
  if target.kind!="champion":return false
  if target.buffs.has("parry"):

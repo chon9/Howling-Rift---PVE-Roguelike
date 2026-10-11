@@ -72,7 +72,11 @@ func run() -> void:
    check(passives.DATA.has(hero),"exported passive metadata "+hero)
    var portrait=portraits.texture_for(hero)
    check(portrait.filter_clip and is_equal_approx(portrait.get_width(),portrait.get_height()),"exported square portrait "+hero)
-  check(load("res://scripts/SteamSession.gd").PROTOCOL=="6","export uses roster/assist network protocol")
+  check(load("res://scripts/SteamSession.gd").PROTOCOL=="7","export uses footprint network protocol")
+  game.spawn_aoe(state.player,state.player.world_pos(),{"effect_id":"xerath_q","radius":250.,"footprint_kind":"capsule","footprint_width":30.,"effect_dir":Vector2.DOWN})
+  var beam_snapshot=load("res://scripts/LanSnapshot.gd").encode().aoes.back()
+  check(beam_snapshot.footprint_kind=="capsule" and beam_snapshot.footprint_width==30. and beam_snapshot.effect_dir==Vector2.DOWN,"exported beam snapshot preserves its collision footprint")
+  check(load("res://scripts/SkillFootprint.gd").AREA_RADII.brand_w==140.,"exported skill geometry metadata loads")
   var combat_effects=load("res://scripts/CombatEffects.gd");var original_shield=state.player.shield
   combat_effects.shield(state.player,"export_audit_shield",100.,3.)
   check(is_equal_approx(state.player.shield,original_shield+100.),"exported timed shield preserves existing shield")

@@ -99,7 +99,7 @@ static func cast(c,id: String,point: Vector2) -> bool:
   "xinzhao_q":empowerment(c,amount(c,id));c.buffs.roster_attack.hits=3;c.buffs.roster_attack.time=6.
   "xinzhao_w":
    NewHeroKits.area(c,c.world_pos(),125,amount(c,id)*.35,{"effect_id":id,"damage_type":"physical","cone_ang":dir.angle(),"arc":PI*.65,"duration":.3})
-   c.buffs.wind_thunder={"time":.3,"direction":dir};visual(c,c.world_pos()+dir*235,id,235,.45,{"effect_dir":dir})
+   c.buffs.wind_thunder={"time":.3,"direction":dir};visual(c,c.world_pos()+dir*235,id,235,.45,{"effect_dir":dir,"footprint_kind":"capsule","footprint_width":42.,"arm_delay":.3})
   "xinzhao_e":
    victim=NewHeroKits.target(c,point,360)
    if victim==null or not dash(c,victim.world_pos()):return false
@@ -148,7 +148,8 @@ static func cast(c,id: String,point: Vector2) -> bool:
   "lucian_q":
    victim=NewHeroKits.target(c,point,440)
    if victim==null:return false
-   Roster12Combat.line_hit(c,c.world_pos(),c.world_pos()+(victim.world_pos()-c.world_pos()).normalized()*620,id,26);visual(c,c.world_pos()+dir*310,id,310,.25,{"effect_dir":dir})
+   dir=(victim.world_pos()-c.world_pos()).normalized()
+   Roster12Combat.line_hit(c,c.world_pos(),c.world_pos()+dir*620,id,26);visual(c,c.world_pos()+dir*310,id,310,.25,{"effect_dir":dir,"footprint_kind":"capsule","footprint_width":26.})
   "lucian_w":bolt(c,point,id,{"special_hit":true})
   "lucian_e":
    if not dash(c,point):return false
@@ -192,7 +193,7 @@ static func cast(c,id: String,point: Vector2) -> bool:
    for s in spheres(c):
     if c.world_pos().distance_to(s.global_position)<360 and dir.dot((s.global_position-c.world_pos()).normalized())>.35:
      NewHeroKits.projectile(c,s.global_position,dir,amount(c,id),{"effect_id":id,"damage_type":"magic","speed":850.,"life":.7,"stun":1.5,"pierce":99,"size":16.});remove_sphere(s)
-   visual(c,c.world_pos()+dir*120,id,180,.4,{"effect_dir":dir})
+   visual(c,c.world_pos(),id,210,.4,{"cone_ang":dir.angle(),"arc":acos(.2 if c.passive_state.get("splinters",0)>=80 else .5)*2.})
   "syndra_r":
    victim=NewHeroKits.target(c,point,500)
    if victim==null or victim.kind!="champion":return false

@@ -29,12 +29,15 @@ var airborne_time: float = 0.
 var spell_id: String = ""
 var special_hit: bool = false
 var readable_boundary: bool = false
+var footprint_kind: String = ""
+var footprint_width: float = 0.
 var broken_walls: Array = [false,false,false,false,false]
 var previous_positions: Dictionary = {}
 
 func setup(_src, pos: Vector2, opts: Dictionary) -> void:
 	effect_id=opts.get("effect_id", "");effect_dir=opts.get("effect_dir",Vector2.RIGHT);zone_kind=opts.get("zone_kind", "");arm_delay=opts.get("arm_delay",0.);follows_src=opts.get("follows_src",false)
 	special_hit=opts.get("special_hit",false)
+	footprint_kind=opts.get("footprint_kind","");footprint_width=opts.get("footprint_width",0.)
 	spell_id=opts.get("spell_id",effect_id)
 	airborne_time=opts.get("airborne",0.)
 	src = _src
@@ -43,6 +46,7 @@ func setup(_src, pos: Vector2, opts: Dictionary) -> void:
 	global_position = pos
 	radius = opts.get("radius", 100)
 	dmg = opts.get("dmg", 0)
+	if dmg>0 and SkillFootprint.AREA_RADII.has(spell_id) and zone_kind not in ["lantern","soul","dagger","sphere"]:radius=SkillFootprint.AREA_RADII[spell_id]
 	# Trap siblings share hit history; explosions can exclude their direct victim.
 	hit_set = opts.get("hit_set",[])
 	duration = opts.get("duration", 0.5)
@@ -53,7 +57,7 @@ func setup(_src, pos: Vector2, opts: Dictionary) -> void:
 	stun_time = opts.get("stun",0.0)
 	wind_kind = int(opts.get("wind_kind",-1))
 	slow_duration = opts.get("slow_dur", 0.0)
-	readable_boundary = (dmg>0 or stun_time>0 or slow_pct>0) and cone_ang < -900 and zone_kind not in ["soul","dagger","sphere","heal_field","lantern","box"] and effect_id not in ["xinzhao_w","lucian_q","xerath_q","xinzhao_q","xinzhao_e","thresh_e","darius_e"]
+	readable_boundary = (dmg>0 or stun_time>0 or slow_pct>0 or not footprint_kind.is_empty() or cone_ang>-900 or zone_kind in ["trap","heal_field","lantern"]) and zone_kind not in ["soul","dagger","sphere"]
 	z_index = Constants.Z_AOE
 	art_row = SpellArt.row_for(src)
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
@@ -69,16 +73,26 @@ func _draw() -> void:
 		draw_set_transform(Vector2.ZERO)
 		_draw_readable_boundary()
 		return
-	_draw_readable_boundary()
+	if cone_ang>-900:
+		var region=SpellArt.frame(SpellArt.impacts,maxi(0,art_row),mini(7,int(elapsed/duration*8)))
+		draw_set_transform(Vector2.ZERO,cone_ang)
+		var sector=footprint();sector.angle=0.
+		var extent=radius*sin(arc*.5)
+		SkillFootprint.draw_clipped(self,SpellArt.impacts,region,Rect2(0,-extent,radius,extent*2),sector,Color(1,1,1,.7))
+		draw_set_transform(Vector2.ZERO)
+		_draw_readable_boundary()
+		return
 	if ring:
 		var fade=clampf((duration-elapsed)*2.,0.,1.)
 		draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(color,fade*.85),7.,true)
 		for i in range(8):
 			var point=Vector2.from_angle(i*TAU/8.)*radius
 			draw_line(point,point+Vector2(0,-30),Color(color,fade),5.,true)
+		_draw_readable_boundary()
 		return
 	if wind_kind >= 0:
 		draw_texture_rect_region(WindArt.texture,Rect2(Vector2.ONE*-radius,Vector2.ONE*radius*2),WindArt.frame(wind_kind,mini(3,int(elapsed/duration*4))),Color(1,1,1,0.9))
+		_draw_readable_boundary()
 		return
 	if art_row >= 0:
 		draw_texture_rect_region(SpellArt.impacts, Rect2(Vector2.ONE * -radius, Vector2.ONE * radius * 2), SpellArt.frame(SpellArt.impacts, art_row, mini(7, int(elapsed / duration * 8))), Color(1, 1, 1, 0.7))
@@ -86,14 +100,7 @@ func _draw() -> void:
 	if alpha < 0: alpha = 0
 	draw_circle(Vector2.ZERO, radius, Color(color.r, color.g, color.b, alpha * 0.6))
 	draw_arc(Vector2.ZERO, radius, 0, TAU, 48, Color(color.r, color.g, color.b, alpha), 3.0, true)
-	# Cone overlay
-	if cone_ang > -900:
-		var pts := PackedVector2Array([Vector2.ZERO])
-		for i in range(17):
-			var t = float(i) / 16.0
-			var a = cone_ang - arc * 0.5 + arc * t
-			pts.append(Vector2(cos(a) * radius, sin(a) * radius))
-		draw_colored_polygon(pts, Color(color.r, color.g, color.b, alpha * 0.5))
+	_draw_readable_boundary()
 
 func update_frame(delta: float) -> void:
 	elapsed += delta
@@ -112,6 +119,7 @@ func update_frame(delta: float) -> void:
 		hit_set.clear();next_tick=elapsed+tick_interval
 	# Deal damage once per entity
 	if dmg > 0 and elapsed >= arm_delay:
+		var collision=footprint()
 		var cands = GameState.minions + GameState.champions + GameState.structures
 		for u in cands:
 			if hit_set.has(u) or u == null or u.dead or u.team == team or not u.is_targetable:
@@ -120,12 +128,7 @@ func update_frame(delta: float) -> void:
 			if u.kind == "structure" and not u.is_structure_attackable():
 				continue
 			var d = global_position.distance_to(u.world_pos())
-			if d <= radius + u.size * 0.3:
-				if ring and absf(d-radius)>22+u.size*.3:continue
-				if cone_ang > -900:
-					var to_ang = (u.world_pos() - global_position).angle()
-					var diff = abs(wrapf(to_ang - cone_ang, -PI, PI))
-					if diff > arc * 0.5: continue
+			if SkillFootprint.contains(collision,(u.world_pos()-global_position).rotated(-effect_dir.angle() if footprint_kind in ["capsule","rectangle"] else 0.),u.size*.3):
 				var payload=Roster12Combat.special_damage(effect_id,src,u,dmg,global_position) if special_hit else dmg
 				get_tree().call_group("game_main", "deal_damage", src, u, payload, damage_type,spell_id)
 				hit_set.append(u)
@@ -146,35 +149,26 @@ func _draw_kit_effect() -> void:
 	var sheet=KitEffectArt.sheet(effect_id);var region=KitEffectArt.region(effect_id,frame)
 	var rect=Rect2(Vector2.ONE*-radius,Vector2.ONE*radius*2)
 	if effect_id in ["veigar_w","veigar_e"]:rect=KitEffectArt.ground_rect(effect_id,radius)
-	if effect_id in ["xinzhao_w","lucian_q","xerath_q"]:
-		draw_set_transform(Vector2.ZERO,effect_dir.angle());rect=Rect2(-radius,-30,radius*2,60)
+	if footprint_kind=="capsule":
+		draw_set_transform(Vector2.ZERO,effect_dir.angle());rect=Rect2(-radius-footprint_width,-footprint_width,(radius+footprint_width)*2,footprint_width*2)
 	elif effect_id=="xinzhao_q":
 		draw_set_transform(Vector2(0,-25),effect_dir.angle());rect=Rect2(-radius*.5,-radius*.18,radius,radius*.36)
 	elif effect_id=="xinzhao_e":
 		draw_set_transform(Vector2(0,-32),effect_dir.angle());rect=Rect2(-radius*.6,-radius*.28,radius*1.2,radius*.56)
-	elif effect_id in ["brand_w","leona_r","xerath_w","xerath_r","sivir_r"]:rect=Rect2(-radius,-radius*1.6,radius*2,radius*2)
-	if effect_id.get_slice("_",0) in RosterExpansion12.KEYS and arm_delay>0 and elapsed<arm_delay:
-		draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(color,.6),2.,true)
-	# Ground outlines show the exact collision boundary beneath the painted pillars.
-	if zone_kind=="cage":draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(.7,.35,1.,.4 if elapsed>=arm_delay else .7),2.,true)
-	if effect_id=="veigar_w" and elapsed<arm_delay:draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(.75,.4,1.,.65),2.,true)
 	if zone_kind=="box":
 		for wall in range(5):
 			if not broken_walls[wall]:draw_line(Vector2.from_angle(-PI/2+wall*TAU/5)*radius,Vector2.from_angle(-PI/2+(wall+1)*TAU/5)*radius,Color(.3,1.,.7,.4),2.,true)
 	if effect_id=="thresh_e":
 		draw_set_transform(Vector2.ZERO,effect_dir.angle());rect=Rect2(-220,-65,440,130)
-	elif effect_id=="darius_e":draw_set_transform(Vector2.ZERO,effect_dir.angle());rect=Rect2(-25,-120,245,240)
-	if zone_kind=="box" and broken_walls.has(true):
-		for wall in range(5):
-			if broken_walls[wall]:continue
-			var a=Vector2.from_angle(-PI/2+wall*TAU/5)*radius*1.8
-			var b=Vector2.from_angle(-PI/2+(wall+1)*TAU/5)*radius*1.8
-			var wedge=PackedVector2Array([Vector2.ZERO,a,b])
-			var clip=PackedVector2Array([rect.position,rect.position+Vector2(rect.size.x,0),rect.end,rect.position+Vector2(0,rect.size.y)])
-			for points in Geometry2D.intersect_polygons(wedge,clip):
-				var uv=PackedVector2Array()
-				for point in points:uv.append((region.position+(point-rect.position)/rect.size*region.size)/sheet.get_size())
-				draw_colored_polygon(points,Color.WHITE,uv,sheet)
+
+	if cone_ang>-900 or footprint_kind in ["capsule","rectangle"]:
+		var local_shape=footprint()
+		if cone_ang>-900:
+			draw_set_transform(Vector2.ZERO,cone_ang);local_shape.angle=0.
+			var extent=radius*sin(arc*.5)
+			rect=Rect2(0,-extent,radius,extent*2)
+		SkillFootprint.draw_clipped(self,sheet,region,rect,local_shape,Color(1,1,1,.9))
+	elif KitEffectArt.has_ground_profile(effect_id):KitEffectArt.draw_ground(self,effect_id,frame,radius,Color(1,1,1,.9),broken_walls if zone_kind=="box" else [])
 	else:draw_texture_rect_region(sheet,rect,region,Color(1,1,1,.9))
 	if zone_kind=="lantern" and is_instance_valid(GameState.player) and GameState.player.team==team:
 		draw_string(ThemeDB.fallback_font,Vector2(-44,38),"RIGHT-CLICK",HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color("b9ffe6"))
@@ -239,13 +233,28 @@ func _roster_zone(delta: float) -> void:
 		if unit.dead or unit.team==team or unit.world_pos().distance_to(global_position)>radius+unit.size*.3:continue
 		Roster12Kits.control(unit,1.5);unit.buffs.rifle_mark={"time":4.,"src":src};elapsed=duration;break
 
+func footprint() -> Dictionary:
+	if zone_kind=="lantern":return SkillFootprint.circle(100.)
+	if footprint_kind=="capsule":return SkillFootprint.capsule(radius*2,footprint_width)
+	if footprint_kind=="rectangle":return {"shape":"rectangle","length":radius*2,"width":footprint_width}
+	if zone_kind=="box":return {"shape":"box","radius":radius}
+	if ring or zone_kind=="cage":return {"shape":"ring","radius":radius,"width":22. if ring else 10.,"outer_width":0. if ring else 10.}
+	return SkillFootprint.circle(radius,cone_ang,arc)
+
 func _draw_readable_boundary() -> void:
 	if not readable_boundary:return
 	var warning=elapsed<arm_delay
 	var friendly=not is_instance_valid(GameState.player) or team==GameState.player.team
 	var tint=Color("8adfff") if friendly else Color("ff8b68")
 	var fade=clampf((duration-elapsed)/.15,0.,1.)
-	draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(0.015,0.025,0.04,.75*fade),4.,true)
-	draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(tint,(.9 if warning else .65)*fade),1.6,true)
-	if warning:
+	draw_set_transform(Vector2.ZERO,effect_dir.angle() if footprint_kind in ["capsule","rectangle"] else 0.)
+	if zone_kind=="box":
+		for wall in range(5):
+			if broken_walls[wall]:continue
+			var a=Vector2.from_angle(-PI/2+wall*TAU/5)*radius
+			var b=Vector2.from_angle(-PI/2+(wall+1)*TAU/5)*radius
+			draw_line(a,b,Color(tint,.65*fade),1.6,true)
+	else:SkillFootprint.draw_outline(self,footprint(),Color(tint,(.9 if warning else .65)*fade),warning)
+	if warning and cone_ang<-900 and footprint_kind.is_empty() and zone_kind!="box":
 		draw_arc(Vector2.ZERO,radius,-PI/2,-PI/2+TAU*clampf(elapsed/arm_delay,0.,1.),64,Color("fff4da"),3.,true)
+	draw_set_transform(Vector2.ZERO)

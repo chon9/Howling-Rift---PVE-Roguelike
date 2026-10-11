@@ -42,7 +42,7 @@ static func cast(c,id: String,point: Vector2) -> bool:
    c.buffs.empowered={"time":5.,"damage":amount(c,id),"slow":.45 if id=="darius_w" else 0.}
    aura(c,id,60,.45 if id=="vayne_q" else 1.)
   "darius_e","thresh_e":
-   NewHeroKits.area(c,c.world_pos(),220,0,{"effect_id":id,"effect_dir":direction,"duration":.45})
+   NewHeroKits.area(c,c.world_pos(),220,0,{"effect_id":id,"effect_dir":direction,"duration":.45,"footprint_kind":"rectangle" if id=="thresh_e" else "","footprint_width":65.,"cone_ang":direction.angle() if id=="darius_e" else -999.,"arc":acos(.35)*2.})
    for enemy in GameState.champions+GameState.minions:
     if enemy.team==c.team or enemy.dead or not enemy.is_targetable:continue
     var offset=enemy.world_pos()-c.world_pos()

@@ -325,7 +325,9 @@ func _draw() -> void:
 	if buffs.has("wind_wall"):
 		var direction: Vector2 = buffs.wind_wall.direction
 		draw_set_transform(direction*50,direction.angle()+PI/2)
-		draw_texture_rect_region(WindArt.texture,Rect2(-106,-34,212,68),WindArt.frame(2,int(tnow*12)%4))
+		draw_texture_rect_region(WindArt.texture,Rect2(-90,-25,180,50),WindArt.frame(2,int(tnow*12)%4))
+		draw_set_transform(direction*50,direction.angle())
+		SkillFootprint.draw_outline(self,{"shape":"rectangle","length":50.,"width":90.},Color(.65,.9,.85,.65))
 		draw_set_transform(Vector2.ZERO)
 	if hero_key == "yasuo" and buffs.has("tempest") and buffs.tempest.stacks == 2:
 		draw_arc(Vector2.ZERO,33,-PI,PI,48,Color("c4efed"),2,true)

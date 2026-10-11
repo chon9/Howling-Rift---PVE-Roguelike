@@ -1,5 +1,5 @@
 extends Node2D
-# Tiny visual: pulsing yellow ring around a champion using Judgment (Garen E).
+# Animated spell artwork for spinning champion skills.
 
 var t: float = 0.0
 
@@ -16,5 +16,3 @@ func _draw() -> void:
 	var parent=get_parent()
 	var r = float(parent.buffs.get("spin",{}).get("radius",72.))
 	draw_texture_rect_region(SpellArt.impacts, Rect2(Vector2.ONE * -r, Vector2.ONE * r * 2), SpellArt.frame(SpellArt.impacts, maxi(0,SpellArt.row_for(parent)), 3 + int(t * 12) % 4), Color(1, 1, 1, 0.7+pulse*.1))
-	draw_arc(Vector2.ZERO, r, 0, TAU, 48, Color(parent.hero.accent,.7), 3.0, true)
-	draw_circle(Vector2.ZERO, r - 2, Color(parent.hero.accent,.12))

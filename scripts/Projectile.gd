@@ -162,7 +162,6 @@ func _draw() -> void:
 		if damage_type != "auto":
 			draw_line(Vector2(-visual_dimensions.x*.45,0),Vector2(visual_dimensions.x*.3,0),Color(color.r,color.g,color.b,.45),maxf(3,visual_dimensions.y*.45),true)
 		draw_texture_rect_region(sheet, visual_rect(), KitEffectArt.region(effect_id,int(animation_time*16)%4) if KitEffectArt.has_effect(effect_id) else SpellArt.missile_frame(sheet, art_row, int(animation_time * 18) % 8))
-		if shape == "heart": draw_arc(Vector2.ZERO, size * 1.2, 0, TAU, 24, Color("f69ed4"), 2, true)
 		return
 	# All shapes are drawn in local space with +X being "forward" (direction of travel).
 	match shape:

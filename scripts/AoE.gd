@@ -28,6 +28,7 @@ var follows_src: bool = false
 var airborne_time: float = 0.
 var spell_id: String = ""
 var special_hit: bool = false
+# Retained for protocol 8 snapshots; spell art no longer draws collision outlines.
 var readable_boundary: bool = false
 var footprint_kind: String = ""
 var footprint_width: float = 0.
@@ -57,7 +58,6 @@ func setup(_src, pos: Vector2, opts: Dictionary) -> void:
 	stun_time = opts.get("stun",0.0)
 	wind_kind = int(opts.get("wind_kind",-1))
 	slow_duration = opts.get("slow_dur", 0.0)
-	readable_boundary = (dmg>0 or stun_time>0 or slow_pct>0 or not footprint_kind.is_empty() or cone_ang>-900 or zone_kind in ["trap","heal_field","lantern"]) and zone_kind not in ["soul","dagger","sphere"]
 	z_index = Constants.Z_AOE
 	art_row = SpellArt.row_for(src)
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
@@ -65,13 +65,11 @@ func setup(_src, pos: Vector2, opts: Dictionary) -> void:
 func _draw() -> void:
 	if zone_kind in ["soul","dagger"]:
 		var icon=AbilityArt.icon_for("thresh" if zone_kind=="soul" else "katarina",1 if zone_kind=="soul" else 0)
-		draw_arc(Vector2.ZERO,18,0,TAU,24,Color("75ddc3") if zone_kind=="soul" else Color("e2a596"),1.5,true)
 		draw_texture_rect(icon,Rect2(-12,-24,24,24),false,Color(1,1,1,.85))
 		return
 	if KitEffectArt.has_effect(effect_id):
 		_draw_kit_effect()
 		draw_set_transform(Vector2.ZERO)
-		_draw_readable_boundary()
 		return
 	if cone_ang>-900:
 		var region=SpellArt.frame(SpellArt.impacts,maxi(0,art_row),mini(7,int(elapsed/duration*8)))
@@ -80,7 +78,6 @@ func _draw() -> void:
 		var extent=radius*sin(arc*.5)
 		SkillFootprint.draw_clipped(self,SpellArt.impacts,region,Rect2(0,-extent,radius,extent*2),sector,Color(1,1,1,.7))
 		draw_set_transform(Vector2.ZERO)
-		_draw_readable_boundary()
 		return
 	if ring:
 		var fade=clampf((duration-elapsed)*2.,0.,1.)
@@ -88,19 +85,17 @@ func _draw() -> void:
 		for i in range(8):
 			var point=Vector2.from_angle(i*TAU/8.)*radius
 			draw_line(point,point+Vector2(0,-30),Color(color,fade),5.,true)
-		_draw_readable_boundary()
 		return
 	if wind_kind >= 0:
 		draw_texture_rect_region(WindArt.texture,Rect2(Vector2.ONE*-radius,Vector2.ONE*radius*2),WindArt.frame(wind_kind,mini(3,int(elapsed/duration*4))),Color(1,1,1,0.9))
-		_draw_readable_boundary()
 		return
 	if art_row >= 0:
 		draw_texture_rect_region(SpellArt.impacts, Rect2(Vector2.ONE * -radius, Vector2.ONE * radius * 2), SpellArt.frame(SpellArt.impacts, art_row, mini(7, int(elapsed / duration * 8))), Color(1, 1, 1, 0.7))
+		return
+	# Untextured effects retain a soft glow, without a hard perimeter.
 	var alpha = 0.55 * (1.0 - elapsed / duration)
 	if alpha < 0: alpha = 0
 	draw_circle(Vector2.ZERO, radius, Color(color.r, color.g, color.b, alpha * 0.6))
-	draw_arc(Vector2.ZERO, radius, 0, TAU, 48, Color(color.r, color.g, color.b, alpha), 3.0, true)
-	_draw_readable_boundary()
 
 func update_frame(delta: float) -> void:
 	elapsed += delta
@@ -155,9 +150,6 @@ func _draw_kit_effect() -> void:
 		draw_set_transform(Vector2(0,-25),effect_dir.angle());rect=Rect2(-radius*.5,-radius*.18,radius,radius*.36)
 	elif effect_id=="xinzhao_e":
 		draw_set_transform(Vector2(0,-32),effect_dir.angle());rect=Rect2(-radius*.6,-radius*.28,radius*1.2,radius*.56)
-	if zone_kind=="box":
-		for wall in range(5):
-			if not broken_walls[wall]:draw_line(Vector2.from_angle(-PI/2+wall*TAU/5)*radius,Vector2.from_angle(-PI/2+(wall+1)*TAU/5)*radius,Color(.3,1.,.7,.4),2.,true)
 	if effect_id=="thresh_e":
 		draw_set_transform(Vector2.ZERO,effect_dir.angle());rect=Rect2(-220,-65,440,130)
 
@@ -240,21 +232,3 @@ func footprint() -> Dictionary:
 	if zone_kind=="box":return {"shape":"box","radius":radius}
 	if ring or zone_kind=="cage":return {"shape":"ring","radius":radius,"width":22. if ring else 10.,"outer_width":0. if ring else 10.}
 	return SkillFootprint.circle(radius,cone_ang,arc)
-
-func _draw_readable_boundary() -> void:
-	if not readable_boundary:return
-	var warning=elapsed<arm_delay
-	var friendly=not is_instance_valid(GameState.player) or team==GameState.player.team
-	var tint=Color("8adfff") if friendly else Color("ff8b68")
-	var fade=clampf((duration-elapsed)/.15,0.,1.)
-	draw_set_transform(Vector2.ZERO,effect_dir.angle() if footprint_kind in ["capsule","rectangle"] else 0.)
-	if zone_kind=="box":
-		for wall in range(5):
-			if broken_walls[wall]:continue
-			var a=Vector2.from_angle(-PI/2+wall*TAU/5)*radius
-			var b=Vector2.from_angle(-PI/2+(wall+1)*TAU/5)*radius
-			draw_line(a,b,Color(tint,.65*fade),1.6,true)
-	else:SkillFootprint.draw_outline(self,footprint(),Color(tint,(.9 if warning else .65)*fade),warning)
-	if warning and cone_ang<-900 and footprint_kind.is_empty() and zone_kind!="box":
-		draw_arc(Vector2.ZERO,radius,-PI/2,-PI/2+TAU*clampf(elapsed/arm_delay,0.,1.),64,Color("fff4da"),3.,true)
-	draw_set_transform(Vector2.ZERO)

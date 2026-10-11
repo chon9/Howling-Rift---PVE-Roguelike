@@ -17,7 +17,7 @@ func _ready() -> void:
  caster._annie_w(caster.world_pos()+Vector2.RIGHT*300)
  var cone=GameState.aoes.back();cone.update_frame(.01)
  check(inside.hp<10000. and outside.hp==10000.,"real cone hits forward and misses outside its drawn sector")
- check(cone.footprint().shape=="cone" and cone.readable_boundary,"cone presentation uses actual sector")
+ check(cone.footprint().shape=="cone" and not cone.readable_boundary,"cone keeps actual collision sector without extra outline")
  check(SkillFootprint.preview(caster,caster.hero.skills[1]).radius==cone.radius,"Annie preview and active radius agree")
  check(not SkillFootprint.contains(cone.footprint(),Vector2(-100,0)),"cone never claims rearward damage")
  # Test damage at the rendered circle edge, including the target's collision padding.

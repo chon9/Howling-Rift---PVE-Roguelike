@@ -56,6 +56,7 @@ var kill_announcer
 
 func _ready() -> void:
 	if get_tree().current_scene == self: Progression.load_profile()
+	set_fullscreen(Progression.fullscreen_enabled, false)
 	add_to_group("game_main")
 	kill_announcer = load("res://scripts/KillAnnouncer.gd").new()
 	kill_announcer.main = self
@@ -398,8 +399,9 @@ func _build_progression_menu(root: Control, in_match: bool = false) -> void:
 		panel.add_child(button)
 		buttons[key] = button
 	var fullscreen = CheckButton.new()
+	fullscreen.name = "Fullscreen"
 	fullscreen.text = "FULLSCREEN  [F11]  •  Native display resolution"
-	fullscreen.button_pressed = DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+	fullscreen.button_pressed = Progression.fullscreen_enabled
 	fullscreen.toggled.connect(set_fullscreen)
 	panel.add_child(fullscreen)
 	var close = Button.new()
@@ -1508,7 +1510,7 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F11 or (event.keycode == KEY_ENTER and event.alt_pressed):
-			set_fullscreen(DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_FULLSCREEN)
+			set_fullscreen(not Progression.fullscreen_enabled)
 			get_viewport().set_input_as_handled()
 			return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
@@ -1578,9 +1580,12 @@ func play_sfx(event: String, actor = null) -> void:
 	if sound_fx != null: sound_fx.play(event, actor)
 
 
-func set_fullscreen(enabled: bool) -> void:
-	if DisplayServer.get_name() == "headless": return
-	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if enabled else DisplayServer.WINDOW_MODE_WINDOWED)
+func set_fullscreen(enabled: bool, persist_change: bool = true) -> void:
+	var changed = Progression.fullscreen_enabled != enabled
+	Progression.fullscreen_enabled = enabled
+	if changed and persist_change: Progression.save_profile()
+	if DisplayServer.get_name() != "headless":
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if enabled else DisplayServer.WINDOW_MODE_WINDOWED)
 	for overlay in [menu, in_game_menu]:
 		if not is_instance_valid(overlay): continue
 		for control in overlay.find_children("*", "CheckButton", true, false):

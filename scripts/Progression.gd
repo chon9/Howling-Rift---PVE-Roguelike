@@ -15,6 +15,7 @@ var allied_bots: bool = true
 var edge_smoothing: bool = true
 var frame_limit: int = 120
 var vsync_enabled: bool = true
+var fullscreen_enabled: bool = false
 var credits: int = 0
 var difficulty: int = 1
 var levels: Dictionary = {}
@@ -51,6 +52,7 @@ func load_profile() -> void:
 	music_volume = clampf(float(file.get_value("audio","music_volume",0.28)),0,1)
 	smart_cast = bool(file.get_value("controls","smart_cast",true))
 	allied_bots = bool(file.get_value("match","allied_bots",true))
+	fullscreen_enabled = bool(file.get_value("graphics","fullscreen",false))
 	edge_smoothing = bool(file.get_value("graphics","edge_smoothing",true))
 	vsync_enabled = bool(file.get_value("graphics","vsync",true))
 	frame_limit = int(file.get_value("graphics","frame_limit",120))
@@ -86,6 +88,7 @@ func save_profile() -> bool:
 	file.set_value("graphics","edge_smoothing",edge_smoothing)
 	file.set_value("graphics","frame_limit",frame_limit)
 	file.set_value("graphics","vsync",vsync_enabled)
+	file.set_value("graphics","fullscreen",fullscreen_enabled)
 	file.set_value("profile", "credits", credits)
 	file.set_value("profile", "difficulty", difficulty)
 	for key in UPGRADES: file.set_value("upgrades", key, int(levels.get(key, 0)))

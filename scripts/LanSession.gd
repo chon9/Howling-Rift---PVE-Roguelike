@@ -22,6 +22,10 @@ var last_snapshot_sequence: int = -1
 var snapshot_received_at: float = 0.0
 var state_timer: float = 0.0
 var last_state_time: float = -1.0
+var loading_match: bool = false
+var loaded_peers: Dictionary = {}
+var loading_deadline: float = 0.
+var pending_finish: Dictionary = {}
 var match_started: bool = false
 var last_commands: Dictionary = {}
 var pending_player: Dictionary = {}
@@ -70,7 +74,7 @@ func leave(forget_reconnect: bool=true) -> void:
  players.clear(); draft_states.clear(); positions.clear()
  replica_minions.clear(); replica_projectiles.clear(); replica_aoes.clear()
  motion_samples.clear(); incoming_frames.clear(); snapshot_sequence=0; last_snapshot_sequence=-1; snapshot_received_at=0.
- match_started = false
+ match_started = false;loading_match=false;loaded_peers.clear();loading_deadline=0.;pending_finish.clear()
  state_timer = 0; last_state_time = -1
  pending_player.clear()
  last_commands.clear()
@@ -162,7 +166,8 @@ func _peer_left(peer: int) -> void:
     if not GameState.allied_bots:c.disable_roster_slot()
     c.char_name+=" (AI)" if GameState.allied_bots else " (Disconnected)"
    c.name_label.text=c.char_name
- draft_states.erase(peer);peer_tokens.erase(peer)
+ draft_states.erase(peer);peer_tokens.erase(peer);loaded_peers.erase(peer)
+ _release_if_loaded()
  if not GameState.started:broadcast_lobby()
  refresh_lobby()
 func sanitize_bonuses(bonuses: Dictionary) -> Dictionary:
@@ -254,6 +259,7 @@ func start_match() -> void:
  if not can_start():return
  var config=MatchRules.build_config(players,rules,Progression.difficulty,Progression.allied_bots)
  for entry in config.players:players[entry.peer]=entry.duplicate(true)
+ config["loading_id"]=Time.get_ticks_msec()
  match_config=config.duplicate(true)
  match_started=true
  multiplayer.multiplayer_peer.refuse_new_connections=not is_pvp()
@@ -262,11 +268,45 @@ func start_match() -> void:
 @rpc("authority","call_local","reliable",1)
 func _begin_match(config: Dictionary) -> void:
  match_started=true;match_config=config.duplicate(true)
+ pending_finish.clear()
+ loading_match=not bool(config.get("resuming",false));loaded_peers.clear();loading_deadline=Time.get_ticks_msec()/1000.+180.
  rules=MatchRules.settings(str(config.get("mode","pve")),int(config.get("team_size",3)),bool(config.get("fill_bots",true)))
  draft_states.clear();last_state_time=-1
  motion_samples.clear();incoming_frames.clear();snapshot_sequence=0;last_snapshot_sequence=-1
  resume_requested=false;reconnect_info.clear()
  if is_instance_valid(main):main._start_network_match(config)
+func mark_match_loaded() -> void:
+ if not active:return
+ if not loading_match:
+  if is_instance_valid(main):main._finish_match_loading()
+  _apply_pending_finish()
+  return
+ var id=int(match_config.get("loading_id",0))
+ if is_host():loaded_peers[1]=true;_release_if_loaded()
+ else:_client_loaded.rpc_id(1,id)
+@rpc("any_peer","call_remote","reliable",1)
+func _client_loaded(id: int) -> void:
+ if not is_host() or not loading_match or id!=int(match_config.get("loading_id",0)):return
+ var peer=multiplayer.get_remote_sender_id()
+ if not players.has(peer):return
+ loaded_peers[peer]=true;_release_if_loaded()
+func _release_if_loaded() -> void:
+ if not is_host() or not loading_match or not GameState.started:return
+ for peer in players:
+  if not loaded_peers.has(peer):return
+ _release_match.rpc(int(match_config.get("loading_id",0)))
+@rpc("authority","call_local","reliable",1)
+func _release_match(id: int) -> void:
+ if not loading_match or id!=int(match_config.get("loading_id",0)) or not GameState.started:return
+ loading_match=false
+ if is_instance_valid(main):main._finish_match_loading()
+ _apply_pending_finish()
+
+func _apply_pending_finish() -> void:
+ if pending_finish.is_empty():return
+ var outcome=pending_finish;pending_finish={}
+ _finish(int(outcome.winner),outcome.packet)
+
 func send_command(kind: String, data: Dictionary = {}) -> void:
  if not is_client() or not GameState.started: return
  _command.rpc_id(1,kind,data)
@@ -414,6 +454,9 @@ func smooth_positions(delta: float) -> void:
 func _process(delta: float) -> void:
  if is_host():
   var now=Time.get_ticks_msec()/1000.
+  if loading_match and now>loading_deadline:
+   for peer in players.keys():
+    if peer!=1 and not loaded_peers.has(peer):multiplayer.multiplayer_peer.disconnect_peer(peer)
   for token in disconnected.keys():
    if now>disconnected[token].expires:disconnected.erase(token)
  if not is_client() or not GameState.started: return
@@ -454,7 +497,9 @@ func finish(winner: int) -> void:
    _finish.rpc_id(peer,winner,LanSnapshot.encode())
 @rpc("authority","call_remote","reliable",1)
 func _finish(winner: int, packet: Dictionary) -> void:
- if not is_client() or not GameState.started: return
+ if not is_client():return
+ if not GameState.started or (is_instance_valid(main) and is_instance_valid(main.match_loader) and main.match_loader.pending):
+  pending_finish={"winner":winner,"packet":packet.duplicate(true)};return
  last_state_time = packet.time
  LanSnapshot.apply(packet,self)
  main._end_game(winner)

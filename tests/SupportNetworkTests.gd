@@ -31,6 +31,7 @@ func _ready() -> void:
   LanSession.ready_player("ashe",["heal","ghost"],{})
   if not await until(func():return LanSession.players.size()==3 and LanSession.can_start()):check(false,"three peers ready");get_tree().quit(1);return
   LanSession.start_match()
+  check(await until(func():return GameState.running),"all peers finish asset loading before scenario")
   for c in GameState.champions:
    c.is_bot=false;c.stop_actions()
    if c.team==1:c.dead=true;c.respawn_at=INF;c.is_targetable=false

@@ -24,6 +24,7 @@ func setup(pos: Vector2, text: String, color: Color, big: bool = false) -> void:
 	add_child(label)
 
 func _process(delta: float) -> void:
+	if GameState.paused:return
 	elapsed += delta
 	var t = elapsed / life
 	global_position.y = start_y - 40 * t

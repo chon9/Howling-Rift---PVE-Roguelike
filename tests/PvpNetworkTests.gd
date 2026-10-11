@@ -13,6 +13,7 @@ func until(predicate: Callable,seconds: float=15.) -> bool:
  return predicate.call()
 func _ready() -> void:
  var args=OS.get_cmdline_user_args();role=args[0];size=int(args[1])
+ Progression.fullscreen_enabled=false;Progression.frame_limit=120;Progression.vsync_enabled=false
  Progression.persistent=false;Progression.credits=54321;Progression.difficulty=99
  Progression.levels.clear();Progression.gear_stash.clear();Progression.daily.clear()
  game=load("res://scripts/Main.gd").new();add_child(game)
@@ -22,6 +23,7 @@ func _ready() -> void:
   if not await until(func():return LanSession.players.size()==size*2 and LanSession.can_start()):
    check(false,"all human teams ready");get_tree().quit(1);return
   LanSession.start_match()
+  check(await until(func():return GameState.running),"all peers finish asset loading before scenario")
   check(GameState.champions.filter(func(c):return c.roster_active).size()==size*2,"all active slots human")
   check(GameState.champions.filter(func(c):return c.roster_active).all(func(c):return not c.is_bot and c.permanent_bonus.is_empty()),"all humans have fair stats")
   check(await until(func():return GameState.champions.filter(func(c):return c.owner_peer>1).all(func(c):return c.summoner_cds[1]>0 and c.inventory.has("dagger"))),"commands from both teams execute on host")
@@ -46,7 +48,7 @@ func _ready() -> void:
    check(guest.roster_active and not guest.is_bot,"no-fill disconnected hero stays vulnerable")
    check(await until(func():return guest.owner_peer>1 and guest.owner_peer!=old_peer and LanSession.disconnected.is_empty(),20),"reconnect reclaims same red champion")
    check(guest.gold>=4321 and guest.inventory.has("dagger") and not guest.run_bonus.is_empty(),"reconnect preserves items gold and draft")
-   await get_tree().create_timer(2.).timeout
+   if not OS.get_cmdline_user_args().has("--end-during-reconnect"):await get_tree().create_timer(2.).timeout
   game._end_game(Constants.RED)
   await get_tree().create_timer(2.).timeout
   check(Progression.credits==54321,"host gains no PvE credits")
@@ -55,7 +57,7 @@ func _ready() -> void:
   if not await until(func():return LanSession.players.has(multiplayer.get_unique_id())):
    check(false,"lobby arrives");get_tree().quit(1);return
   LanSession.ready_player("ashe",["heal","ghost"],{"bonus_hp":10000})
-  if not await until(func():return GameState.started):
+  if not await until(func():return GameState.running):
    check(false,"match begins");get_tree().quit(1);return
   var p=GameState.player
   check(p.owner_peer==multiplayer.get_unique_id() and not p.is_bot,"owns local champion")
@@ -80,10 +82,13 @@ func _ready() -> void:
    check(await until(func():return not LanSession.active),"network interruption received")
    check(LanSession.can_reconnect(),"reconnect option retained")
    check(LanSession.reconnect_game()==OK,"reconnect opens")
+   if OS.get_cmdline_user_args().has("--end-during-reconnect"):
+    check(await until(func():return not LanSession.pending_finish.is_empty()),"match result buffers during native warmup")
    check(await until(func():return GameState.started and LanSession.match_started and not LanSession.resume_requested),"resumed match rebuilds")
    p=GameState.player
    check(await until(func():return p.gold>=4321 and p.inventory.has("dagger") and p.skill_cds[0]>0),"same champion inventory cooldown and gold restored")
    check(p.team==1 and not p.run_bonus.is_empty(),"red team and draft restored")
+   if OS.get_cmdline_user_args().has("--end-during-reconnect"):check(LanSession.pending_finish.is_empty() and not GameState.running,"buffered result applies after warmup")
   check(await until(func():return GameState.started and not GameState.running,20),"authoritative victory received")
   check(Progression.credits==54321 and Progression.gear_stash.is_empty(),"guest gains no PvE credits or drops")
  print("PVP network %dv%d %s: %d checks, %d failures" % [size,size,role,checks,failures])

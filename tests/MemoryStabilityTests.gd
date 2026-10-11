@@ -22,7 +22,11 @@ func _ready() -> void:
   var blue=[];var red=[]
   for i in range(3):blue.append(keys[(round*6+i)%keys.size()]);red.append(keys[(round*6+i+3)%keys.size()])
   game.network_config={"blue":blue,"red":red,"players":[{"peer":1,"name":"Test","bonuses":{},"spells":["flash","ignite"]}],"stage":1}
-  var start=Time.get_ticks_usec();game._start_game(blue[0]);await settled()
+  var start=Time.get_ticks_usec()
+  if OS.get_cmdline_user_args().has("--warm-start"):
+   game.force_match_loading=true;await game._launch_game(blue[0])
+  else:game._start_game(blue[0])
+  await settled()
   for c in GameState.champions:
    c.is_bot=false
    for action in ActionSpriteArt.entry(c.animator.key).actions:

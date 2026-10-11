@@ -31,6 +31,7 @@ func _ready() -> void:
   if not await until(func(): return LanSession.players.size() == 3 and LanSession.can_start()):
    check(false,"three ready peers join"); get_tree().quit(1); return
   LanSession.start_match()
+  check(await until(func():return GameState.running),"all peers finish asset loading before scenario")
   check(GameState.champions.size() == 6 and GameState.player.hero_key == "yasuo","host starts shared ARAM")
   check(GameState.champions[1].owner_peer != 0 and not GameState.champions[1].is_bot and not GameState.champions[2].is_bot,"three humans own separate blue heroes")
   await until(func(): return GameState.time >= 3)
@@ -60,7 +61,7 @@ func _ready() -> void:
   if not await until(func(): return LanSession.players.has(multiplayer.get_unique_id())):
    check(false,"lobby sync arrives"); get_tree().quit(1); return
   LanSession.ready_player("leesin" if role == "client1" else "zed",["heal","ghost"],Progression.bonuses())
-  if not await until(func(): return GameState.started):
+  if not await until(func(): return GameState.running):
    check(false,"shared match begins"); get_tree().quit(1); return
   var p = GameState.player
   for stat in Progression.bonuses():check(is_equal_approx(p.permanent_bonus.get(stat,0.),Progression.bonuses()[stat]),"guest equipment stat replicated: "+stat)

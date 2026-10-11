@@ -55,7 +55,10 @@ func run() -> void:
  if lan.is_host():
   lan.ready_player("malphite",["flash","heal"],profile.bonuses())
   lan.start_match()
-  await create_timer(1).timeout
+  var loaded_deadline=Time.get_ticks_msec()+25000
+  while not state.running and Time.get_ticks_msec()<loaded_deadline:await process_frame
+  check(state.running and not lan.loading_match,"export waits for asset warmup before simulation")
+  check(game.match_loader!=null and not game.match_loader.resources.is_empty(),"export owns warmed match assets")
   check(state.started and state.champions.size()==6,"exported ARAM runs with all six heroes")
   check(state.player.animator.texture()!=null,"exported action sprites load")
   check(state.player.mp_max>0,"exported Granite has a real mana pool")
@@ -74,7 +77,7 @@ func run() -> void:
    check(passives.DATA.has(hero),"exported passive metadata "+hero)
    var portrait=portraits.texture_for(hero)
    check(portrait.filter_clip and is_equal_approx(portrait.get_width(),portrait.get_height()),"exported square portrait "+hero)
-  check(load("res://scripts/SteamSession.gd").PROTOCOL=="9","export uses PvP network protocol")
+  check(load("res://scripts/SteamSession.gd").PROTOCOL=="10","export uses PvP network protocol")
   game.spawn_aoe(state.player,state.player.world_pos(),{"effect_id":"xerath_q","radius":250.,"footprint_kind":"capsule","footprint_width":30.,"effect_dir":Vector2.DOWN})
   var beam_snapshot=load("res://scripts/LanSnapshot.gd").encode().aoes.back()
   check(beam_snapshot.footprint_kind=="capsule" and beam_snapshot.footprint_width==30. and beam_snapshot.effect_dir==Vector2.DOWN,"exported beam snapshot preserves its collision footprint")
@@ -162,6 +165,10 @@ func run() -> void:
  var people={1:{"peer":1,"name":"Host","hero":"ashe","spells":["heal","ghost"],"team":0,"ready":true,"bonuses":{"bonus_ad":9999}},2:{"peer":2,"name":"Rival","hero":"ashe","spells":["flash","ignite"],"team":1,"ready":true,"bonuses":{"bonus_hp":9999}}}
  var pvp_config=pvp_rules.build_config(people,pvp_rules.settings("pvp",1,false),99,false)
  game._start_network_match(pvp_config)
+ var pvp_load_deadline=Time.get_ticks_msec()+20000
+ while not state.running and Time.get_ticks_msec()<pvp_load_deadline:await process_frame
+ check(state.running,"exported PvP asset warmup completes")
+ if not state.running:quit(1);return
  check(state.is_pvp() and state.difficulty==1 and state.champions.filter(func(c):return c.roster_active).size()==2,"exported fair 1v1 roster starts")
  check(state.player.permanent_bonus.is_empty() and is_equal_approx(state.champions[0].ad,state.champions[3].ad) and is_equal_approx(state.champions[0].hp_max,state.champions[3].hp_max),"exported PvP strips permanent gear and submitted bonuses")
  var balance_before=profile.credits;var stash_before=profile.gear_stash.size();var claims_before=profile.daily.claimed.size()
@@ -169,7 +176,7 @@ func run() -> void:
  check(profile.credits==balance_before and profile.gear_stash.size()==stash_before and profile.daily.claimed.size()==claims_before,"exported PvP does not change PvE credits or loot")
  lan.leave();game._return_to_main_menu()
  game.network_config={"mode":"pve","allied_bots":true,"blue":["soraka","janna","ashe"],"red":["leesin","lux","darius"],"players":[{"peer":1,"slot":0,"name":"You","spells":["heal","ghost"],"bonuses":{}}]}
- game._start_game("soraka");game.set_process(false)
+ await game._launch_game("soraka");game.set_process(false)
  var healer=state.champions[0];var guardian=state.champions[1];var ally=state.champions[2]
  for c in state.champions:c.is_bot=false;c.stop_actions()
  healer.global_position=Vector2(1200,270);guardian.global_position=Vector2(1230,270);ally.global_position=Vector2(1260,270);ally.hp=100.
@@ -179,7 +186,7 @@ func run() -> void:
  var support_art=load("res://scripts/SupportArt.gd");var support_kit_art=load("res://scripts/KitEffectArt.gd")
  for id in support_art.ROWS:check(support_kit_art.has_effect(id) and support_kit_art.region(id,3).has_area() and support_kit_art.sheet(id)!=null,"exported support spell/attack art "+id)
  check(load("res://scripts/LanSnapshot.gd").encode().champs[0].has("last_order_sequence"),"exported snapshots acknowledge predicted movement")
- check(ProjectSettings.get_setting("application/config/version")=="0.6.5","export has correct release version")
+ check(ProjectSettings.get_setting("application/config/version")=="0.6.6","export has correct release version")
  game.queue_free();await process_frame
  print("STEAM EXPORT SMOKE: ",failures," failures")
  quit(1 if failures else 0)

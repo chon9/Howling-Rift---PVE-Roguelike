@@ -59,6 +59,9 @@ var last_lan_address: String = ""
 var network_config: Dictionary = {}
 var graphics_quality: CanvasLayer
 var kill_announcer
+var match_loader: MatchLoading
+var match_load_serial: int = 0
+var force_match_loading: bool = false # Native loading path can also run in headless integration tests.
 
 func _ready() -> void:
 	Input.use_accumulated_input = false
@@ -515,7 +518,45 @@ class _CardPortraitDraw extends Control:
 		draw_rect(frame,Color("bd985b"),false,2.,true)
 		draw_rect(frame.grow(-2),Color("493e2a"),false,1.,true)
 
-func _start_game(hero_key: String) -> void:
+func _exit_tree() -> void:
+	if is_instance_valid(match_loader):match_loader.cancel()
+
+func _resolve_match_roster(player_hero: String) -> Dictionary:
+	var hero_keys=ChampionData.CHAMPIONS.keys();hero_keys.shuffle()
+	var others=hero_keys.filter(func(h):return h!=player_hero)
+	var blue=network_config.get("blue",[player_hero,others[0],others[1]]).duplicate()
+	var red=network_config.get("red",MatchRoster.enemy_team(blue)).duplicate()
+	return {"blue":blue,"red":red}
+
+func _launch_game(hero_key: String) -> void:
+	if GameState.started or is_instance_valid(match_loader):return
+	var roster=_resolve_match_roster(hero_key)
+	if DisplayServer.get_name()=="headless" and not force_match_loading:
+		_start_game(hero_key,roster,not LanSession.loading_match)
+		if LanSession.active:LanSession.mark_match_loaded()
+		return
+	match_load_serial+=1
+	var serial=match_load_serial
+	var loader=MatchLoading.new();match_loader=loader
+	get_tree().root.add_child.call_deferred(loader)
+	await loader.ready
+	if serial!=match_load_serial:
+		loader.pending=false;loader.cancel();return
+	loader.show_loading(_return_to_main_menu)
+	if not await loader.prepare(roster.blue+roster.red):return
+	if serial!=match_load_serial or not is_instance_valid(loader):return
+	_start_game(hero_key,roster,false)
+	if not await loader.finish_render():return
+	if serial!=match_load_serial or not is_instance_valid(loader):return
+	if LanSession.active:LanSession.mark_match_loaded()
+	else:_finish_match_loading()
+
+func _finish_match_loading() -> void:
+	GameState.paused=false
+	GameState.running=true
+	if is_instance_valid(match_loader):match_loader.dismiss()
+
+func _start_game(hero_key: String,roster: Dictionary={},activate: bool=true) -> void:
 	if GameState.started: return
 	GameState.match_mode=str(network_config.get("mode","pve"))
 	GameState.difficulty = 1 if GameState.is_pvp() else int(network_config.get("stage",Progression.difficulty))
@@ -524,14 +565,15 @@ func _start_game(hero_key: String) -> void:
 	menu.queue_free()
 	hud.get_node("HudRoot").show()
 	hud.get_node("HudRoot").show_game_hud()
-	_build_match(hero_key)
+	_build_match(hero_key,roster,activate)
 	_build_in_game_menu()
 
 # =============================================================================
 # MATCH BOOT
 # =============================================================================
-func _build_match(player_hero: String) -> void:
+func _build_match(player_hero: String,roster: Dictionary={},activate: bool=true) -> void:
 	GameState.reset()
+	GameState.paused=not activate
 	GameState.match_mode=str(network_config.get("mode","pve"))
 	GameState.team_size=int(network_config.get("team_size",3))
 	GameState.fill_bots=bool(network_config.get("fill_bots",true))
@@ -545,12 +587,9 @@ func _build_match(player_hero: String) -> void:
 	for team in [BLUE, RED]:
 		_build_base(team)
 	# Champion compositions
-	var hero_keys = ChampionData.CHAMPIONS.keys()
-	hero_keys.shuffle()
-	var others = hero_keys.filter(func(h): return h != player_hero)
-	var blue_pick = network_config.get("blue",[player_hero, others[0], others[1]])
-	var red_pick = MatchRoster.enemy_team(blue_pick)
-	if not network_config.is_empty(): red_pick = network_config.red.duplicate()
+	if roster.is_empty():roster=_resolve_match_roster(player_hero)
+	var blue_pick=roster.blue
+	var red_pick=roster.red
 	ActionSpriteArt.begin_match(blue_pick+red_pick)
 	KitEffectArt.begin_match(blue_pick+red_pick)
 	var configs: Array=network_config.get("players",[])
@@ -560,6 +599,7 @@ func _build_match(player_hero: String) -> void:
 			for index in range(configs.size()):
 				if int(configs[index].get("slot",index))==team*3+i:config=configs[index];break
 			var owner=int(config.get("peer",1 if team==BLUE and i==0 and network_config.is_empty() else 0))
+			if LanSession.active and owner>1 and not LanSession.players.has(owner):owner=0
 			var is_player=owner==multiplayer.get_unique_id()
 			var c=ChampionS.new();world_root.add_child(c)
 			var hero=(blue_pick if team==BLUE else red_pick)[i]
@@ -595,7 +635,7 @@ func _build_match(player_hero: String) -> void:
 	camera.position = GameState.cam_target
 	hud.get_node("HudRoot").build_for_player(GameState.player)
 	GameState.started = true
-	GameState.running = true
+	GameState.running = activate
 	lane_augments = load("res://scripts/LaneAugments.gd").new()
 	add_child(lane_augments)
 	lane_augments.setup(self)
@@ -1334,7 +1374,7 @@ func _build_summoner_select(root: Control) -> void:
 		if LanSession.active:
 			LanSession.ready_player(selected_hero,selected_summoners,Progression.bonuses())
 			_show_lobby()
-		else: _start_game(selected_hero))
+		else: _launch_game(selected_hero))
 	row.add_child(launch_button)
 
 func spawn_tibbers(src, pt: Vector2) -> void:
@@ -1534,6 +1574,10 @@ func _build_in_game_menu() -> void:
 	button.pressed.connect(toggle_in_game_menu)
 
 func _input(event: InputEvent) -> void:
+	if is_instance_valid(match_loader) and is_instance_valid(match_loader.overlay) and event is InputEventKey:
+		if event.pressed and not event.echo and event.keycode==KEY_ESCAPE:_return_to_main_menu()
+		if event.keycode!=KEY_F11 and not (event.keycode==KEY_ENTER and event.alt_pressed):
+			get_viewport().set_input_as_handled();return
 	if pending_skill >= 0:
 		if (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT) or (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE):
 			_cancel_pending_skill()
@@ -1745,6 +1789,9 @@ func _close_confirmation() -> bool:
 			return true
 	return false
 func _return_to_main_menu() -> void:
+	match_load_serial+=1
+	if is_instance_valid(match_loader):match_loader.cancel()
+	match_loader=null
 	_cancel_pending_skill()
 	var sound_enabled = sound_fx.enabled if is_instance_valid(sound_fx) else true
 	_reset_camera_shake()
@@ -1771,7 +1818,7 @@ func _start_network_match(config: Dictionary) -> void:
 		if player.peer == multiplayer.get_unique_id():
 			selected_hero = player.hero
 			selected_summoners = player.spells.duplicate()
-	_start_game(selected_hero)
+	_launch_game(selected_hero)
 
 var hero_impact_times: Dictionary={}
 func spawn_hero_impact(point: Vector2,row: int,radius: float,angle: float=0.,victim=null) -> void:

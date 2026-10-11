@@ -11,6 +11,7 @@ var score_label: RichTextLabel
 var wave_label: Label
 var difficulty_label: Label
 
+var status_tray: Control
 var action_bar: Control
 var action_content: Control
 var inventory_grid: GridContainer
@@ -340,6 +341,10 @@ func _build_bottom_hud() -> void:
 	action_bar.size = Vector2(940,150)
 	action_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(action_bar)
+	status_tray=preload("res://scripts/StatusTray.gd").new()
+	status_tray.position=Vector2(240,-40);status_tray.size=Vector2(408,36)
+	action_bar.add_child(status_tray)
+	status_tray.hide()
 	player_panel = PanelContainer.new()
 	player_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	player_panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -830,6 +835,7 @@ func refresh(delta: float) -> void:
 		tooltip_label.text = ChampionData.skill_description(player.hero_key, hovered_skill, player)
 		_position_skill_tooltip()
 	if player == null: return
+	status_tray.unit=player
 	var counter=action_content.get_node_or_null("PassiveCounter")
 	if counter!=null:
 		var text=HeroPassives.state_text(player);counter.text="P • "+text.split(" • ")[0] if text!="Active from level 1" else "P • PASSIVE"

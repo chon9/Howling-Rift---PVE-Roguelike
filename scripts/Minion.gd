@@ -158,15 +158,6 @@ func _draw() -> void:
 		draw_texture_rect_region(animator.texture(),Rect2(animator.draw_rect().position-Vector2(0,HeroControl.lift(self)),animator.draw_rect().size),animator.source_rect(),Color(1.10,1.06,1.02) if flash_t>0 else Color.WHITE)
 		draw_set_transform(Vector2.ZERO)
 
-	# Status FX ------------------------------------
-	if buffs.has("flux_mark"):
-		draw_arc(Vector2.ZERO, size + 4, 0, TAU, 32, Color("efcd7e"), 2, true)
-	if buffs.has("slow"):
-		for i in range(3):
-			var a = (i / 3.0) * TAU + Time.get_ticks_msec() / 400.0
-			draw_circle(Vector2(cos(a) * size * 1.2, size * 0.4 + sin(a) * 3),
-				2, Color(0.5, 0.85, 1.0, 0.9))
-
 func art_rect() -> Rect2:
 	return ActionSpriteArt.body_rect("minion_"+subkind,size*2.7,facing_sign<0)
 

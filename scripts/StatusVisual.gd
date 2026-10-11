@@ -1,97 +1,113 @@
 extends Node2D
-# Persistent statuses follow the unit and use authoritative remaining durations.
+# Read only presentation. All durations come from host gameplay / replicated buffs.
 var unit
 var phase: float = 0.0
 var stun_remaining: float = 0.0
 var ignite_remaining: float = 0.0
+var silence_remaining: float = 0.0
 var shield_amount: float = 0.0
 var shield_pulse: float = 0.0
+var heal_remaining: float = 0.0
+var previous_hp: float = -1.0
+var previous_hp_max: float = -1.0
+var statuses: Array = []
+var primary_status: Dictionary = {}
 var fire_texture: Texture2D
 var font: Font = ThemeDB.fallback_font
+var badge_boxes: Dictionary = {}
 
 func _ready() -> void:
  z_index = Constants.Z_FX-Constants.Z_UNITS
  texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
- fire_texture = load("res://assets/vfx/ignite-status-v1.png")
+ fire_texture = StatusArt.texture("burn")
  refresh()
 
 func refresh() -> void:
- if not is_instance_valid(unit): return
- stun_remaining = maxf(0,unit.stun) if not unit.dead else 0.0
- ignite_remaining = maxf(0,float(unit.buffs.get("ignite",{}).get("time",0))) if not unit.dead else 0.0
- var next_shield = maxf(0, unit.shield) if unit.kind == "champion" and not unit.dead else 0.0
- if next_shield != shield_amount: shield_pulse = 0.3 if next_shield > shield_amount else 0.18
- shield_amount = next_shield
- visible = not DeadeyeCue.channel(unit).is_empty() or not DeadeyeCue.locks_on(unit).is_empty() or stun_remaining>0 or ignite_remaining>0 or shield_amount>0 or ["grand_challenge","rifle_mark","artillery","arcanopulse","parry","roster_attack"].any(func(k):return unit.buffs.has(k)) or unit.buffs.keys().any(func(k):return k.begins_with("vital_"))
+ if not is_instance_valid(unit):return
+ stun_remaining=maxf(0.,unit.stun) if not unit.dead else 0.
+ ignite_remaining=maxf(0.,float(unit.buffs.get("ignite",{}).get("time",0.))) if not unit.dead else 0.
+ silence_remaining=maxf(0.,float(unit.buffs.get("silence",{}).get("time",0.))) if not unit.dead else 0.
+ var next_shield=maxf(0.,unit.shield) if unit.kind=="champion" and not unit.dead else 0.
+ if next_shield!=shield_amount:shield_pulse=.3 if next_shield>shield_amount else .18
+ shield_amount=next_shield
+ if not unit.dead and previous_hp>=0 and is_equal_approx(previous_hp_max,unit.hp_max) and unit.hp-previous_hp>=maxf(1.,unit.hp_max*.005):heal_remaining=.7
+ previous_hp=unit.hp;previous_hp_max=unit.hp_max
+ if unit.dead:heal_remaining=0.
+ statuses=StatusArt.collect(unit)
+ if heal_remaining>0:statuses.append({"id":"heal","label":"HEALING","time":heal_remaining,"stacks":0,"detail":"Health restored."})
+ primary_status={}
+ for status in statuses:
+  if status.id in ["airborne","stun","silence","root"]:primary_status=status;break
+ if primary_status.is_empty() and ignite_remaining>0:
+  primary_status={"id":"burn","label":"IGNITE","time":ignite_remaining}
+ visible=not unit.dead and (not statuses.is_empty() or not DeadeyeCue.channel(unit).is_empty() or not DeadeyeCue.locks_on(unit).is_empty() or ["artillery","arcanopulse","parry","roster_attack"].any(func(k):return unit.buffs.has(k)))
  queue_redraw()
 
 func _process(delta: float) -> void:
  if not GameState.paused:
-  phase += delta
-  shield_pulse = maxf(0, shield_pulse-delta)
+  phase+=delta
+  shield_pulse=maxf(0.,shield_pulse-delta)
+  heal_remaining=maxf(0.,heal_remaining-delta)
  refresh()
 
-func fire_frame() -> Rect2:
- if fire_texture == null: return Rect2()
- var cell = Vector2(fire_texture.get_width()/4.0,fire_texture.get_height())
- return Rect2(Vector2(int(phase*12)%4,0)*cell,cell)
+func fire_frame() -> Rect2:return StatusArt.frame_rect("burn",phase)
 
-func _badge(text: String, y: float, color: Color, spiral: bool = false) -> void:
- var width = font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,14).x+16
- var left = -width/2+10 if spiral else -width/2
- draw_style_box(_background(color),Rect2(left-4,y-18,width+8,24))
- draw_string_outline(font,Vector2(left+8,y),text,HORIZONTAL_ALIGNMENT_LEFT,-1,14,1,Color.BLACK)
- draw_string(font,Vector2(left+8,y),text,HORIZONTAL_ALIGNMENT_LEFT,-1,14,color.lightened(0.45))
- draw_line(Vector2(left,y+4),Vector2(left+width,y+4),color,2,true)
- if spiral:
-  var center = Vector2(left-17,y-7)
-  draw_circle(center,14,Color(0.04,0.02,0.09,0.9))
-  var points = PackedVector2Array()
-  for i in range(65):
-   var progress = float(i)/64.0
-   var angle = progress*TAU*1.8-phase*3
-   points.append(center+Vector2(cos(angle),sin(angle))*(2+progress*10))
-  draw_polyline(points,color.lightened(0.3),2.8,true)
+func _badge(text: String,y: float,color: Color,_spiral: bool=false) -> void:
+ var width=font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,12).x+16
+ draw_style_box(_background(color),Rect2(-width/2,y-17,width,23))
+ draw_string_outline(font,Vector2(-width/2+8,y),text,HORIZONTAL_ALIGNMENT_LEFT,-1,12,1,Color.BLACK)
+ draw_string(font,Vector2(-width/2+8,y),text,HORIZONTAL_ALIGNMENT_LEFT,-1,12,color.lightened(.35))
+ draw_line(Vector2(-width/2,y+5),Vector2(width/2,y+5),color,1.5,true)
 
 func _background(color: Color) -> StyleBoxFlat:
- var box = StyleBoxFlat.new()
- box.bg_color = Color(0.025,0.035,0.055,0.94)
- box.border_color = Color(color,0.8)
- box.set_border_width_all(1)
- box.set_corner_radius_all(3)
+ if badge_boxes.has(color):return badge_boxes[color]
+ var box=StyleBoxFlat.new();box.bg_color=Color(.025,.035,.055,.94);box.border_color=Color(color,.8)
+ box.set_border_width_all(1);box.set_corner_radius_all(3);badge_boxes[color]=box
  return box
 
+func _sprite(id: String,rect: Rect2,alpha: float=1.) -> void:
+ draw_texture_rect_region(StatusArt.texture(id),rect,StatusArt.frame_rect(id,phase),Color(1,1,1,alpha))
+
+func overhead_statuses() -> Array:
+ # One icon per family, CC first. Full named buffs remain available in the HUD.
+ var result=[];var seen={}
+ if not primary_status.is_empty():seen[primary_status.id]=true
+ for status in statuses:
+  if not seen.has(status.id):result.append(status);seen[status.id]=true
+ return result
+
 func _draw() -> void:
- if not is_instance_valid(unit) or unit.dead: return
- _draw_deadeye()
- _draw_roster_status()
- var hero = unit.kind == "champion"
- var head_y = -Constants.CHAMP_ART_HEIGHT-56 if hero else unit.art_rect().position.y-24.0
- if shield_amount>0:
-  var center = Vector2(0,-Constants.CHAMP_ART_HEIGHT*.48)
-  var pulse = shield_pulse/0.3
-  var points = PackedVector2Array()
-  for i in range(65):
-   var angle = TAU*i/64.0
-   points.append(center+Vector2(cos(angle)*Constants.CHAMP_ART_HEIGHT*.34,sin(angle)*Constants.CHAMP_ART_HEIGHT*.53))
-  draw_colored_polygon(points,Color(0.42,0.77,1.0,0.065+pulse*0.1))
-  draw_polyline(points,Color(0.5,0.82,1,0.15+pulse*0.2),6*Constants.CHAMP_ART_SCALE,true)
-  draw_polyline(points,Color(0.77,0.94,1,0.48+pulse*0.4),1.6,true)
-  for offset in [0.0,PI]:
-   var arc = PackedVector2Array()
-   for i in range(18):
-    var angle = phase*0.6+offset+float(i)/17*0.6
-    arc.append(center+Vector2(cos(angle)*Constants.CHAMP_ART_HEIGHT*.34,sin(angle)*Constants.CHAMP_ART_HEIGHT*.53))
-   draw_polyline(arc,Color(0.86,0.97,1,0.72),2.4,true)
- if ignite_remaining>0:
-  # The atlas leaves the torso transparent while flames climb its sides.
-  if fire_texture != null:
-   var effect_scale = Constants.CHAMP_ART_SCALE if hero else unit.size*2.7/108.0
-   draw_texture_rect_region(fire_texture,Rect2(Vector2(-48,-100)*effect_scale,Vector2(96,120)*effect_scale),fire_frame(),Color(1,1,1,0.85))
-  var burn_y = head_y-30 if stun_remaining>0 else head_y
-  _badge("IGNITE %.1fs" % ignite_remaining,burn_y,Color("ff8640"))
- if stun_remaining>0:
-  _badge(("AIRBORNE" if unit.buffs.has("airborne") else "STUNNED")+" %.1fs" % stun_remaining,head_y-HeroControl.lift(unit),Color("ba8bff"),not unit.buffs.has("airborne"))
+ if not is_instance_valid(unit) or unit.dead:return
+ _draw_deadeye();_draw_roster_status()
+ var hero=unit.kind=="champion"
+ var height=Constants.CHAMP_ART_HEIGHT if hero else unit.size*2.7
+ var head_y=-height-56. if hero else unit.art_rect().position.y-24.
+ var lift=HeroControl.lift(unit)
+ if not DeadeyeCue.channel(unit).is_empty() or not DeadeyeCue.locks_on(unit).is_empty():head_y-=40.
+ if shield_amount>0:_sprite("shield",Rect2(-height*.66,-height*1.12-lift,height*1.32,height*1.32),.85+shield_pulse*.3)
+ if statuses.any(func(status):return status.id=="guard"):_sprite("guard",Rect2(-height*.69,-height*1.15-lift,height*1.38,height*1.38),.8)
+ if statuses.any(func(status):return status.id=="burn"):
+  # Flames stay at the body edges; they do not obscure the torso or health bar.
+  for side in [-1.,1.]:_sprite("burn",Rect2(side*height*.32-height*.18,-height*.45-lift,height*.36,height*.48),.75)
+ if not primary_status.is_empty():
+  var text=primary_status.label+" %.1fs" % (ceilf(primary_status.time*10.)/10.)
+  var width=font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,12).x+16
+  _badge(text,head_y-lift,StatusArt.color(primary_status.id))
+  _sprite(primary_status.id,Rect2(-width/2-29,head_y-24-lift,28,28))
+ var items=overhead_statuses();var limit=5 if hero else 3;var count=mini(items.size(),limit)
+ var row_y=head_y-54.-lift if not primary_status.is_empty() else head_y-22.-lift
+ # Avoid stacking status icons onto Deadeye/channel captions.
+ if not DeadeyeCue.channel(unit).is_empty() or not DeadeyeCue.locks_on(unit).is_empty() or unit.buffs.has("artillery") or unit.buffs.has("arcanopulse") or unit.buffs.has("parry") or unit.buffs.has("roster_attack"):row_y-=48.
+ for i in range(count):
+  var status=items[i];var x=(float(i)-(count-1)*.5)*29.
+  draw_circle(Vector2(x,row_y+12),13,Color(.02,.035,.06,.9))
+  _sprite(status.id,Rect2(x-12,row_y,24,24))
+  var text="%.1f" % status.time if status.time>0 and status.time<10 else ("%d" % ceili(status.time) if status.time>0 and status.time<100 else "")
+  if status.stacks>0:text="x%d" % status.stacks
+  var width=font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,9).x
+  draw_string_outline(font,Vector2(x-width/2,row_y+30),text,HORIZONTAL_ALIGNMENT_LEFT,-1,9,2,Color.BLACK)
+  draw_string(font,Vector2(x-width/2,row_y+30),text,HORIZONTAL_ALIGNMENT_LEFT,-1,9,Color.WHITE)
+ if items.size()>limit:draw_string(font,Vector2(count*14.5+3,row_y+17),"+%d" % (items.size()-limit),HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color.WHITE)
 
 func _draw_roster_status() -> void:
  var vital_key="vital_"+str(GameState.champions.find(GameState.player)) if is_instance_valid(GameState.player) else ""

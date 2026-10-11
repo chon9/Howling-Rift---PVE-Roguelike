@@ -83,6 +83,8 @@ func set_data(idx: int, hero_data: Dictionary, hero_key: String = "") -> void:
 	max_rank = sk_data["max"]
 	hero_color = hero_data["accent"]
 
+var disable_reason: String = ""
+
 func set_state(p) -> void:
 	player = p
 	if player == null: return
@@ -99,6 +101,9 @@ func set_state(p) -> void:
 		ready_to_cast = recast_state.available and player.stun <= 0 and not player.buffs.has("silence")
 		cd_frac = 0
 		cd_remaining = 0
+	disable_reason = "DEAD" if player.dead else ("SILENCED" if player.buffs.has("silence") else ("STUNNED" if player.stun>0 else ""))
+	if sk_data.get("kind","")=="passive":disable_reason=""
+	if disable_reason!="":ready_to_cast=false
 	can_level = player.can_level_skill(slot_idx)
 	upgrade_button.visible = can_level
 	upgrade_button.tooltip_text = "Upgrade %s  [Ctrl+%s]" % [sk_data.name, sk_data.key]
@@ -233,3 +238,8 @@ func _draw() -> void:
 		var nls = font.get_string_size(nl_s, HORIZONTAL_ALIGNMENT_CENTER, -1, 8)
 		draw_string(font, Vector2(c.x - nls.x * 0.5, c.y + 24),
 			nl_s, HORIZONTAL_ALIGNMENT_CENTER, -1, 8, Color(0.7, 0.7, 0.75))
+
+	if disable_reason!="" and not not_learned:
+		draw_rect(Rect2(3,28,size.x-6,22),Color(.07,.025,.1,.9))
+		var width=font.get_string_size(disable_reason,HORIZONTAL_ALIGNMENT_LEFT,-1,10).x
+		draw_string(font,Vector2(c.x-width/2,43),disable_reason,HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("dabaff"))

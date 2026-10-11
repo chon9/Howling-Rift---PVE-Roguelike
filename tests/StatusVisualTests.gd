@@ -10,6 +10,7 @@ func _ready() -> void:
  var game = load("res://scripts/Main.gd").new()
  add_child(game)
  game.set_process(false)
+ game.network_config={"blue":["ashe","garen","lux"],"red":["ashe","garen","lux"],"players":[{"peer":1,"name":"Test","bonuses":{},"spells":["flash","ignite"]}],"stage":1}
  game._start_game("ashe")
  for c in GameState.champions:
   c.is_bot = false
@@ -25,7 +26,7 @@ func _ready() -> void:
  check(fx.ignite_remaining == 5.0 and fx.visible,"real Ignite cast activates persistent five-second flames")
  check(fx.fire_texture != null and fx.fire_texture.get_image().detect_alpha() != Image.ALPHA_NONE,"burn sprite has preserved transparency")
  var frame = fx.fire_frame()
- fx.phase += 1.0/12.0
+ fx.phase += 1.0/8.0
  check(fx.fire_frame() != frame,"persistent flames animate")
  enemy.stun = 2.25
  fx.refresh()

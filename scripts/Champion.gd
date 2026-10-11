@@ -336,8 +336,6 @@ func _draw() -> void:
 		draw_set_transform(offset,0,Vector2(-1,1) if animator.is_flipped() else Vector2.ONE)
 		draw_texture_rect_region(animator.texture(),Rect2(animator.draw_rect().position-Vector2(0,HeroControl.lift(self)),animator.draw_rect().size),animator.source_rect(),Color(0.6,0.3,0.9,0.5))
 		draw_set_transform(Vector2.ZERO)
-	if buffs.has("divine"):
-		draw_arc(Vector2(0,-28)*Constants.CHAMP_ART_SCALE,60*Constants.CHAMP_ART_SCALE,0,TAU,48,Color("ffeaaa"),5,true)
 
 	# Facing indicator (small triangle on ground, pointing where we face)
 	var fdir = facing
@@ -349,18 +347,6 @@ func _draw() -> void:
 		Vector2(fx - fdir.x * 6 + perp.x, fy - fdir.y * 6 + perp.y),
 		Vector2(fx - fdir.x * 6 - perp.x, fy - fdir.y * 6 - perp.y)
 	]), Color(1, 1, 1, 0.85))
-
-	# Status FX ------------------------------------
-	# Slow (blue icicles rising from feet)
-	if buffs.has("slow"):
-		for i in range(3):
-			var a = (i / 3.0) * TAU + G_sin_t()
-			draw_circle(Vector2(cos(a) * 18, 10 + sin(a) * 4), 3, Color(0.5, 0.85, 1.0, 0.9))
-	# Shield visual
-	if buffs.has("flux_mark"):
-		draw_arc(Vector2(0, 0), 31, 0, TAU, 40, Color("efcd7e"), 3, true)
-	if buffs.has("courage"):
-		draw_arc(Vector2(0, 0), 20, 0, TAU, 24, Color(1.0, 0.9, 0.6, 0.6), 2.0, true)
 
 	# HP-bar tick marks (segmented, every 100 HP)
 	var bar_x = -Constants.CHAMP_BAR_WIDTH/2

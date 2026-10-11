@@ -27,25 +27,30 @@ static func blocked(src,target,kind: String) -> bool:
  if target.buffs.has("spell_ward") and kind in ["skill","magic","physical"]:
   target.buffs.erase("spell_ward");target.buffs.spell_guard={"time":.15};target.mp=minf(target.mp_max,target.mp+60.);return true
  return false
-static func before_auto(c,target) -> float:
- var bonus=0.
- if c.buffs.has("exile"):bonus+=c.ad*.2
- if c.buffs.has("runes"):
-  bonus+=c.ad*(.3+.3*(mini(c.level,18)-1)/17.)*(1.2 if c.buffs.has("exile") else 1.);c.buffs.runes.stacks-=1
-  if c.buffs.runes.stacks<=0:c.buffs.erase("runes")
- if c.buffs.has("roster_attack"):
-  bonus+=c.buffs.roster_attack.damage if c.hero_key!="leona" else 0.
-  if c.buffs.roster_attack.get("break_shield",false) and "shield" in target:target.shield=0.
+static func preview_auto_bonus(c,target) -> float:
+ var bonus=c.ad*.2 if c.buffs.has("exile") else 0.
+ if c.buffs.has("runes"):bonus+=c.ad*(.3+.3*(mini(c.level,18)-1)/17.)*(1.2 if c.buffs.has("exile") else 1.)
+ if c.buffs.has("roster_attack") and c.hero_key!="leona":bonus+=c.buffs.roster_attack.damage
  if c.buffs.has("bladework") and c.buffs.bladework.hits==1:bonus+=c.ad*.6
  if c.hero_key=="caitlyn":
   var n=int(c.passive_state.get("headshot",0))+(2 if BrushVision.patch_at(c.world_pos())>=0 else 1)
-  var marked="buffs" in target and target.buffs.get("rifle_mark",{}).get("src")==c
-  if n>=6 or marked:bonus+=c.ad*(.65+HeroPassives.critical_chance(c)*.75)
+  if n>=6 or ("buffs" in target and target.buffs.get("rifle_mark",{}).get("src")==c):bonus+=c.ad*(.65+HeroPassives.critical_chance(c)*.75)
+ return bonus
+static func before_auto(c,target) -> float:
+ var bonus=preview_auto_bonus(c,target)
+ if c.buffs.has("runes"):
+  c.buffs.runes.stacks-=1
+  if c.buffs.runes.stacks<=0:c.buffs.erase("runes")
+ if c.buffs.has("roster_attack") and c.buffs.roster_attack.get("break_shield",false) and "shield" in target:target.shield=0.
+ if c.hero_key=="caitlyn":
+  var n=int(c.passive_state.get("headshot",0))+(2 if BrushVision.patch_at(c.world_pos())>=0 else 1)
   if n>=6:n=0
-  if marked:target.buffs.erase("rifle_mark")
+  if "buffs" in target and target.buffs.get("rifle_mark",{}).get("src")==c:target.buffs.erase("rifle_mark")
   c.passive_state.headshot=n
  return bonus
 static func after_hit(src,target,kind: String) -> void:
+ var secondary=kind=="secondary_auto"
+ if secondary:kind="auto"
  if not is_instance_valid(src) or src.kind!="champion" or target.kind=="structure":return
  if target.buffs.has("sunlight") and target.buffs.sunlight.src!=src and is_instance_valid(target.buffs.sunlight.src) and target.buffs.sunlight.src.team==src.team and kind in ["auto","magic","physical","skill"]:
   var mark=target.buffs.sunlight;target.buffs.erase("sunlight")
@@ -81,7 +86,7 @@ static func after_hit(src,target,kind: String) -> void:
  if src.hero_key=="blitzcrank" and src.rank(3)>0:target.buffs.static_mark={"time":1.,"src":src}
  if src.hero_key=="xerath" and src.item_cds.get("arcane_mana",0.)<=0:
   src.mp=minf(src.mp_max,src.mp+(25.+mini(src.level,18)*2.)*(2. if target.kind=="champion" else 1.));src.item_cds.arcane_mana=8.
- if src.buffs.has("lightslinger"):
+ if not secondary and src.buffs.has("lightslinger"):
   src.buffs.erase("lightslinger");NewHeroKits.projectile(src,src.world_pos(),(target.world_pos()-src.world_pos()).normalized(),src.ad*.5,{"homing":target,"damage_type":"secondary_auto","effect_id":"lucian_auto","speed":950.,"size":7.});src.skill_cds[2]=maxf(0.,src.skill_cds[2]-1.)
  if target.buffs.get("radiant_mark",{}).get("src")==src:src.buffs.haste={"time":1.5,"mult":1.2}
  if src.buffs.has("ricochet"):
@@ -175,7 +180,6 @@ static func expire(c,key: String,b: Dictionary) -> void:
     Roster12Kits.area(c,c.world_pos(),"leona_w",165)
   "overdrive":c.buffs.slow={"time":1.,"pct":.3}
   "dominion":c.hp_max=maxf(1.,c.hp_max-b.health);c.hp=minf(c.hp,c.hp_max)
-  "valor":c.shield=maxf(0.,c.shield-b.shield)
   "lunge_refund":c.skill_cds[0]*=.6
   "parry":
    if not c.dead:Roster12Kits.bolt(c,b.point,"fiora_w",{"stun":1.5 if b.blocked_cc else 0.,"slow":0. if b.blocked_cc else .5,"slow_dur":1.5,"pierce":99})

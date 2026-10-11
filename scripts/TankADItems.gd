@@ -15,7 +15,7 @@ const BUILDS={
  "jinx":["long_sword","boots","berserker_greaves","collector","infinity_edge","kraken","mortal_reminder","bloodthirster"]}
 static func items() -> Dictionary:
  var specs=[
- ["Bami's Cinder",1000,"hp",{"bonus_hp":200.},["ruby_crystal"],"Burn enemies within 170 units each second for 8 + 0.5% max HP magic damage. Burn auras do not stack."],
+ ["Bami's Cinder",1000,"hp",{"bonus_hp":200.},["ruby_crystal"],"Burn enemies within 170 units each second for 8 + 0.5% max HP magic damage (40 cap against minions). Burn auras do not stack."],
  ["Bramble Vest",900,"def",{"bonus_armor":30.,"bonus_reflect":8.},["cloth_armor","cloth_armor"],"Enemy attackers suffer 40% reduced healing for 3s. Reflect 8 damage on their attacks."],
  ["Tiamat",1200,"ad",{"bonus_ad":20.},["pickaxe"],"Attacks cleave enemies within 100 of the victim for 20% AD physical damage. Cleave items do not stack."],
  ["Hexdrinker",1300,"ad",{"bonus_ad":25.,"bonus_mr":25.},["long_sword","null_mantle"],"Taking magic damage below 30% HP grants a 15% max-HP shield for 3s. 60s cooldown shared with Maw and Sterak."],

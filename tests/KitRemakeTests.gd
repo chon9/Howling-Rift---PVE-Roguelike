@@ -113,6 +113,8 @@ func _ready() -> void:
   for key in ["q","w","e","r"]:
    clear_effects();p.buffs.clear();p.is_dashing=false
    var id=hero+"_"+key
+   if id=="vayne_w":
+    check(not ExpansionKits.cast(p,id,enemy.world_pos()),"passive W not castable");ExpansionKits.tick(p,0.);check(p.buffs.has("silver"),"learned W stays active");continue
    check(ExpansionKits.cast(p,id,enemy.world_pos()),"real kit dispatch "+id)
    check((GameState.aoes+GameState.projectiles).any(func(n):return n.effect_id==id),"real cast selects dedicated sprite row "+id)
  print("KIT REMAKE: %d checks, %d failures" % [checks,failures])

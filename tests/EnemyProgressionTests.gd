@@ -48,7 +48,7 @@ func _ready() -> void:
   champion.grant_xp(Constants.xp_to_level(18))
   check(champion.level==19 and champion.skill_points==15,"level 19 preserves earlier unspent skill points for "+key)
   check(champion.level_bonus==Constants.VETERAN_STATS,"first post-skill level grants all four stats for "+key)
-  check(champion.ad>ad+2.9 and champion.bonus_ap>=ap+5. and champion.hp_max>hp+44.9 and champion.mp_max>=mp+24.9,"veteran stats affect actual hero stats for "+key)
+  check(champion.ad>ad+2.9 and champion.bonus_ap>=ap+5. and champion.hp_max>hp+44.9 and (champion.mp_max==200. if key in ["leesin","zed"] else champion.mp_max==0. if champion.hero.mp==0. else champion.mp_max>=mp+24.9),"veteran stats affect actual hero stats for "+key)
   for index in range(4):champion.skill_ranks[index]=champion.hero.skills[index].max
   champion.skill_points=0
   var needed=0.

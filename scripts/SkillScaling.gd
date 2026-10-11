@@ -44,7 +44,7 @@ static func description(id: String, rank: int, c = null) -> String:
  if VALUES.has(id): lines.append(_line(id,rank,c))
  match id:
   "ashe_q":
-   lines.append("3 arrows per attack: 300%% total AD (%.1f total before crits)." % (c.ad*3 if c != null else 0))
+   lines.append("3 arrows per attack: %.0f%% total AD (%.1f total before on-hit effects)." % [(1.05+.05*rank)*100,c.ad*(1.05+.05*rank) if c != null else 0])
    lines.append("Attack speed ×1.4 for 4s. No AP scaling.")
   "ashe_e": lines.append("Movement only • no damage or AD/AP scaling.")
   "yasuo_w": lines.append("Blocks enemy projectiles for 2.5s. No damage or AD/AP scaling.")
@@ -72,3 +72,7 @@ static func description(id: String, rank: int, c = null) -> String:
  if c != null: lines.append("Current stats: %.1f total AD • %.1f AP" % [c.ad,c.bonus_ap])
  lines.append("Damage is before armor, magic resistance and target reductions; conditional item procs are extra.")
  return "\n".join(lines)
+
+static func damage_type(id: String) -> String:
+ if id in ["ezreal_q","ashe_w","garen_e","yasuo_q","yasuo_r","leesin_q","leesin_q2","leesin_r","zed_q","zed_e","zed_r","jinx_w","jinx_r"]:return "physical"
+ return "magic"

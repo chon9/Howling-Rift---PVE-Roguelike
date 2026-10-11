@@ -68,7 +68,7 @@ static func cast(c,id: String,point: Vector2) -> bool:
     var damage=amount(c,id)*(1.+minf(1.,(1.-enemy.hp/enemy.hp_max)*1.5) if id=="veigar_r" else 1.)
     NewHeroKits.projectile(c,c.world_pos(),direction,damage,{"effect_id":id,"homing":enemy,"damage_type":"magic","slow":.35 if id=="malphite_q" else 0.,"slow_dur":2.0,"is_ult":id=="veigar_r"})
   "malphite_w":
-   c.shield=maxf(c.shield,amount(c,id));c.buffs.courage={"time":3.,"dr":.25}
+   CombatEffects.shield(c,"granite_w_shield",amount(c,id),3.);c.buffs.courage={"time":3.,"dr":.25}
    aura(c,id,65,3.)
   "malphite_e":area(c,c.world_pos(),165,id,{"slow":.3,"slow_dur":2.})
   "malphite_r":
@@ -82,9 +82,9 @@ static func cast(c,id: String,point: Vector2) -> bool:
   "morgana_q":bolt(c,point,id,{"stun":1.8,"life":.85})
   "morgana_w":area(c,point,145,id,{"duration":4.,"tick_interval":1.})
   "morgana_e":
-   var ally=NewHeroKits.target(c,point,400,true)
+   var ally=c if point.distance_to(c.world_pos())<25 else NewHeroKits.target(c,point,400,true)
    if ally==null:ally=c
-   ally.shield=maxf(ally.shield,amount(c,id));HeroPassives.support(c,ally);ally.buffs.cc_guard={"time":2.5}
+   CombatEffects.shield(ally,"black_ward_shield",amount(c,id),2.5,c);ally.buffs.cc_guard={"time":2.5}
    aura(ally,id,65,2.5)
   "morgana_r":area(c,c.world_pos(),230,id);c.buffs.soul_chains={"time":1.5,"damage":amount(c,id)}
   "vayne_w":return false

@@ -109,8 +109,8 @@ static func cast(c, id: String, point: Vector2) -> bool:
    if ally != null and (not c.is_bot or BotSafety.can_enter(c,ally.world_pos())):
     c.dash_target = GameState.clamp_walkable(ally.world_pos())
     c.is_dashing = true
-    if ally.kind == "champion": ally.shield = maxf(ally.shield,70+35*c.rank(1));HeroPassives.support(c,ally)
-   c.shield = maxf(c.shield,70+35*c.rank(1))
+    if ally.kind == "champion":CombatEffects.shield(ally,"safeguard_shield",70+35*c.rank(1),4.,c)
+   CombatEffects.shield(c,"safeguard_shield",70+35*c.rank(1),4.)
    c.buffs.iron_will = {"time":4.0,"lifesteal":0.2}
   "leesin_e": area(c,c.world_pos(),170,50+30*c.rank(2),{"slow":0.35,"slow_dur":2.0})
   "leesin_r":
@@ -133,6 +133,7 @@ static func cast(c, id: String, point: Vector2) -> bool:
    if victim == null: return false
    if c.is_bot and not BotSafety.can_enter(c,victim.world_pos(),true): return false
    c.global_position = GameState.clamp_walkable(victim.world_pos()+direction*45)
+   if ExpansionCombat.spell_block(victim,"physical") or Roster12Combat.blocked(c,victim,"physical"):return true
    victim.buffs.death_mark = {"time":3.0,"src":c,"stored":0.0,"base":90+80*c.rank(3)}
   "jinx_q": c.buffs.rockets = {"time":6.0}
   "jinx_w": projectile(c,c.world_pos(),direction,40+30*c.rank(1)+c.ad*0.8,{"slow":0.5,"slow_dur":2.0,"life":1.05})
@@ -170,7 +171,7 @@ static func cast(c, id: String, point: Vector2) -> bool:
     ally.buffs.haste = {"time":2.0,"mult":1.3}
   "kayle_e": c.buffs.righteous = {"time":5.0,"bonus":25+15*c.rank(2)}
   "kayle_r":
-   var ally = target(c,point,400,true)
+   var ally = c if point.distance_to(c.world_pos())<25 else target(c,point,400,true)
    if ally == null: ally = c
    ally.buffs.divine = {"time":2.0,"src":c,"dmg":120+80*c.rank(3)}
   _: return false

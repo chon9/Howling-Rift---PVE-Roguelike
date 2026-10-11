@@ -12,7 +12,7 @@ func _ready() -> void:
  await get_tree().process_frame
  GameState.reset();Progression.persistent=false;Progression.levels.clear()
  var game=load("res://scripts/Main.gd").new();add_child(game);game.set_process(false)
- check(ChampionData.CHAMPIONS.size()==18,"eighteen selectable heroes")
+ check(ChampionData.CHAMPIONS.size()==30,"thirty selectable heroes")
  check(ItemData.ITEMS.size()==76 and ItemData.ORDER.size()==76,"seventy-six unique shop entries")
  var first=MatchRoster.enemy_team(["ashe","garen","lux"])
  var second=MatchRoster.enemy_team(["ashe","garen","lux"])
@@ -32,6 +32,8 @@ func _ready() -> void:
   c.global_position=Vector2(1000,270);c.skill_ranks=[5,5,5,3];c.mp=99999.;c.buffs.clear()
   for i in range(4):
    c.skill_cds=[0.,0.,0.,0.];c.mp=99999.
+   if c.hero.skills[i].kind=="passive":
+    check(not c.try_cast_skill(i,enemy.world_pos()),"learned W cannot be cast");ExpansionKits.tick(c,0.);check(c.buffs.has("silver"),"learned W active");continue
    check(c.try_cast_skill(i,enemy.world_pos()),"new skill successfully dispatches: "+key+str(i))
    check(c.anim_action==["q","w","e","r"][i],"actual cast uses correct action row")
    check(AbilityArt.icon_for(key,i)!=null,"new ability icon")
@@ -70,7 +72,7 @@ func _ready() -> void:
  ExpansionCombat.tick(enemy,.02)
  check(c.buffs.has("cripple"),"Frozen Heart reduces nearby enemy attack speed")
  c.inventory=["trinity","","","","",""];c._apply_items();c.skill_ranks=[1,1,1,1];c.skill_cds=[0.,0.,0.,0.];c.mp=99999.
- c.try_cast_skill(1,c.world_pos())
+ c.try_cast_skill(0,c.world_pos()+Vector2(40,0))
  check(c.buffs.has("spellblade"),"Trinity primes upgraded Spellblade")
  var slot=["sheen","caulfield","kindlegem","","",""]
  var plan=ItemData.purchase_plan("trinity",slot)

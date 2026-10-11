@@ -198,7 +198,7 @@ func _ready() -> void:
  check(p.shield == 20, "Bloodthirster converts excess lifesteal to shield")
  p.inventory = ["archangel","rabadon","","","",""]
  p._apply_items()
- var expected_ap = (160+(p.hero.mp+p.hero.mp_per_lv*(p.level-1)+500)*0.025)*1.3
+ var expected_ap = 160*1.3 if p.hero.mp==0 else (160+(p.hero.mp+p.hero.mp_per_lv*(p.level-1)+500)*0.025)*1.3
  check(is_equal_approx(p.bonus_ap,expected_ap), "mana conversion and Deathcap scale the final AP total")
  p.inventory = ["","","","","",""]
  p._apply_items()

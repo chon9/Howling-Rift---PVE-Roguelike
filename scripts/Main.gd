@@ -958,10 +958,15 @@ func deal_damage(src, target, dmg: float, dmg_type: String, spell_id: String = "
 	if LanSession.is_client(): return
 	if typeof(src) == TYPE_OBJECT and not is_instance_valid(src): src = null
 	if target == null or target.dead: return
+	var cast_id=spell_id if not spell_id.is_empty() else src.active_cast_id if is_instance_valid(src) and src.kind=="champion" else ""
+	if dmg_type=="mark" and cast_id=="ezreal_w":dmg_type="magic"
+	var legacy_damage=dmg_type=="skill"
+	if legacy_damage and not cast_id.is_empty():dmg_type=preload("res://scripts/SkillScaling.gd").damage_type(cast_id)
 	if Roster12Combat.blocked(src,target,dmg_type):return
 	if ExpansionCombat.spell_block(target,dmg_type):return
 	if "buffs" in target and target.buffs.has("divine"): return
-	if dmg_type in ["auto", "skill"] and "buffs" in target and target.buffs.has("flux_mark"):
+	if dmg<=0:return
+	if dmg_type in ["auto", "secondary_auto", "skill","magic","physical"] and "buffs" in target and target.buffs.has("flux_mark"):
 		var mark = target.buffs["flux_mark"]
 		if is_instance_valid(mark.src) and is_instance_valid(src) and mark.src == src:
 			dmg += mark.bonus
@@ -973,12 +978,13 @@ func deal_damage(src, target, dmg: float, dmg_type: String, spell_id: String = "
 	# Preserve the raw rocket payload; each victim applies difficulty/armor once.
 	var rocket_splash_damage = dmg*0.35
 	# Repeated hits use a bounded coefficient, rather than 100% AP every tick.
-	if dmg_type == "skill" and src != null and "bonus_ap" in src:
+	if legacy_damage and src != null and "bonus_ap" in src:
 		dmg += src.bonus_ap * preload("res://scripts/SkillScaling.gd").legacy_ap_ratio(src.hero_key)
 	if src is Object and src.kind == "champion":
 		dmg *= src.difficulty_stats.get("damage", 1.0)
-	if dmg_type in ["skill","magic","physical"] and is_instance_valid(src) and src.kind == "champion" and src.inventory.has("ludens") and src.item_cds.get("ludens", 0.0) <= 0:
-		dmg += 70 + src.bonus_ap * 0.1
+	var luden_proc=0.
+	if dmg_type in ["skill","magic","physical"] and target.kind!="structure" and is_instance_valid(src) and src.kind == "champion" and src.inventory.has("ludens") and src.item_cds.get("ludens", 0.0) <= 0:
+		luden_proc = 70 + src.bonus_ap * 0.1
 		src.item_cds["ludens"] = 6.0
 		spawn_spell_burst(src, target.world_pos(), 38)
 	# Armor: LoL formula dmg * 100 / (100 + armor), applies to all incoming non-"exec" damage
@@ -988,7 +994,7 @@ func deal_damage(src, target, dmg: float, dmg_type: String, spell_id: String = "
 	ExpansionCombat.on_spell(src,target,dmg_type)
 	TankADCombat.on_damage(src,target,dmg_type,dmg)
 	# Damage reduction buff (Garen W)
-	if "buffs" in target and target.buffs.has("courage"):
+	if dmg_type!="exec" and "buffs" in target and target.buffs.has("courage"):
 		dmg *= (1.0 - target.buffs["courage"]["dr"])
 	# Hitting a protected champion draws tower aggro even when armor or shields absorb the hit.
 	if dmg > 0 and src is Object and src.kind == "champion" and target.kind == "champion" and src.team != target.team:
@@ -1010,12 +1016,13 @@ func deal_damage(src, target, dmg: float, dmg_type: String, spell_id: String = "
 	# Shield absorb
 	if "shield" in target and target.shield > 0:
 		var absorb = min(target.shield, dmg)
-		TankADCombat.consume_shield(target,absorb)
-		if target.kind=="champion" and target.hero_key=="malphite":target.passive_state.granite=maxf(0.,target.passive_state.get("granite",0.)-absorb)
+		var untracked_absorb=TankADCombat.consume_shield(target,absorb)
+		if target.kind=="champion" and target.hero_key=="malphite":target.passive_state.granite=maxf(0.,target.passive_state.get("granite",0.)-untracked_absorb)
 		target.shield -= absorb
 		dmg -= absorb
 		floating_text(target.world_pos() + Vector2(0, -20),
 			"-" + str(int(absorb)), Color(0.55, 0.73, 1.0))
+	var health_damage=minf(maxf(0.,target.hp),dmg)
 	if dmg > 0:
 		if is_instance_valid(src) and src.kind=="champion" and src.inventory.has("collector") and target.kind=="champion" and dmg_type in ["auto","skill","magic","physical"] and target.hp-dmg>0 and target.hp-dmg<target.hp_max*.04:
 			dmg=target.hp
@@ -1049,25 +1056,26 @@ func deal_damage(src, target, dmg: float, dmg_type: String, spell_id: String = "
 			if hits_minion: target.next_damage_label = GameState.time+0.25
 			floating_text(target.world_pos()+Vector2(0,-20),"-"+str(int(dmg)),col,dmg_type == "exec" or dmg_type == "crit")
 		# Lifesteal — attacker heals on auto-attack damage
-		if dmg_type == "auto" and src != null and "bonus_lifesteal" in src and (src.bonus_lifesteal > 0 or src.buffs.has("iron_will")):
-			var restored = ExpansionCombat.healing_multiplier(src) * dmg * (src.bonus_lifesteal + src.buffs.get("iron_will",{}).get("lifesteal",0.0))
+		if dmg_type in ["auto","secondary_auto","attack_fragment"] and src != null and "bonus_lifesteal" in src and (src.bonus_lifesteal > 0 or src.buffs.has("iron_will")):
+			var restored = ExpansionCombat.healing_multiplier(src) * health_damage * (src.bonus_lifesteal + src.buffs.get("iron_will",{}).get("lifesteal",0.0))
 			if src.inventory.has("bloodthirster"):
-				src.shield = minf(src.hp_max * 0.15, src.shield + maxf(0, src.hp + restored - src.hp_max))
+				CombatEffects.overheal(src,maxf(0, src.hp + restored - src.hp_max))
 			src.hp = min(src.hp_max, src.hp + restored)
 	if dmg_type == "auto" and is_instance_valid(src) and src.kind == "champion" and src.buffs.has("rockets"):
 		for neighbor in GameState.champions+GameState.minions:
 			if neighbor == target or neighbor.dead or neighbor.team == src.team or neighbor.world_pos().distance_to(target.world_pos()) > 80: continue
 			deal_damage(src,neighbor,rocket_splash_damage,"splash")
 	# Thornmail reflect — on taking auto-attack damage, reflect flat damage back to attacker
-	if dmg_type == "auto" and "bonus_reflect" in target and target.bonus_reflect > 0 \
+	if dmg_type in ["auto","secondary_auto"] and "bonus_reflect" in target and target.bonus_reflect > 0 \
 			and src != null and ("kind" in src) and (src.kind == "champion" or src.kind == "minion"):
 		deal_damage(target, src, target.bonus_reflect, "reflect")
 	# Molten shield reflect (Annie E buff)
 	if "buffs" in target and target.buffs.has("molten") and \
-			src != null and ("kind" in src) and src.kind == "champion" and dmg_type == "auto":
+			src != null and ("kind" in src) and src.kind == "champion" and dmg_type in ["auto","secondary_auto"]:
 		deal_damage(target, src, target.buffs["molten"]["reflect"], "reflect")
-	HeroPassives.on_damage(src,target,dmg_type,damage_before_shield,spell_id if not spell_id.is_empty() else src.active_cast_id if is_instance_valid(src) and src.kind=="champion" else "",dmg)
+	HeroPassives.on_damage(src,target,"auto" if dmg_type=="secondary_auto" else dmg_type,damage_before_shield,cast_id,health_damage)
 	ExpansionCombat.after_hit(src,target,dmg_type)
+	if luden_proc>0 and target.hp>0 and not target.dead:deal_damage(src,target,luden_proc,"item_magic")
 	ExpansionCombat.lifeline(target,dmg_type,src)
 	if target.hp <= 0:
 		_handle_death(src, target)

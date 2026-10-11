@@ -118,13 +118,20 @@ func find_attack_move_target(src, cursor: Vector2, direct_click: bool = false):
 	return cursor_target if cursor_target != null else nearest_target
 
 func last_hit_damage(src, target) -> float:
-	var damage = src.ad
+	var damage = src.ad + Roster12Combat.preview_auto_bonus(src,target) + HeroPassives.auto_bonus(src,target)
+	if src.buffs.has("hunt"):damage+=src.buffs.hunt.damage
+	if src.buffs.has("empowered"):damage+=src.buffs.empowered.damage
 	if src.buffs.has("decisive") and not src.buffs.decisive.used: damage += src.buffs.decisive.bonus
 	if src.inventory.has("blade_ruined_king"): damage += minf(target.hp * 0.06, 60.0) if target.kind == "minion" else target.hp * 0.06
 	if src.buffs.has("spellblade"): damage += TankADCombat.spellblade_damage(src)
 	if src.buffs.has("righteous"): damage += src.buffs.righteous.bonus
 	damage *= src.difficulty_stats.get("damage", 1.0) * 100.0 / (100.0 + ExpansionCombat.resist(target,src,"auto"))
 	var predicted=floor(damage)
+	if src.buffs.has("focus"):predicted=3.*floor(damage*(1.05+.05*src.rank(0))/3.)
+	if src.hero_key=="leona" and src.buffs.has("roster_attack"):predicted+=floor(src.buffs.roster_attack.damage*100./(100.+ExpansionCombat.resist(target,src,"item_magic")))
+	if src.hero_key=="thresh" and src.rank(2)>0:predicted+=floor(src.ad*(.2+.2*src.rank(2))*src.flay_charge*100./(100.+ExpansionCombat.resist(target,src,"item_magic")))
+	if src.hero_key=="kayle" and src.rank(2)>0:predicted+=floor((5.+src.rank(2)*5.+src.bonus_ap*.2)*100./(100.+ExpansionCombat.resist(target,src,"passive_magic")))
+	if src.hero_key=="vayne" and src.rank(1)>0 and src.buffs.get("silver",{}).get("target_id",0)==target.get_instance_id() and src.buffs.silver.stacks==2:predicted+=minf(80.,target.hp_max*(.04+.01*src.rank(1)))
 	if src.inventory.has("titanic_hydra"):predicted+=floor(src.hp_max*.01*src.difficulty_stats.get("damage",1.)*100./(100.+ExpansionCombat.resist(target,src,"item_physical")))
 	if src.inventory.has("kraken") and src.buffs.get("kraken",{}).get("target_id",0)==target.get_instance_id() and src.buffs.kraken.stacks==2:predicted+=floor((30.+src.ad*.45)*src.difficulty_stats.get("damage",1.)*100./(100.+ExpansionCombat.resist(target,src,"item_physical")))
 	if src.inventory.has("dead_mans") and src.buffs.get("momentum",{}).get("stacks",0.)>=100.:predicted+=floor(50.*src.difficulty_stats.get("damage",1.)*100./(100.+ExpansionCombat.resist(target,src,"item_physical")))

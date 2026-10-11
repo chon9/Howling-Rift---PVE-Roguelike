@@ -3,7 +3,7 @@
 An ARAM-only, LoL-inspired 3v3 PvE game built with Godot 4. Arena mode has been removed.
 
 
-Current release: **v0.5.1**. [Download the Windows build](https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/latest). Extract the entire ZIP and run **Howling Rift.exe**. Start Steam for Spacewar co-op; solo and LAN play are also available.
+Current release: **v0.5.2**. [Download the Windows build](https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/latest). Extract the entire ZIP and run **Howling Rift.exe**. Start Steam for Spacewar co-op; solo and LAN play are also available.
 
 The latest update implements all thirty hero passives, fixes Lancer’s third-hit knockup and charge effect, standardizes hero portraits, and fixes co-op bush concealment. See [passive and combat notes](PASSIVES_V051.md). Also restores Thresh’s connecting hook chain in co-op. See [multiplayer hook fix](HOOK_COOP_V045.md). Includes automatic version checking, verified background updates, smoother co-op networking and brighter Vesper projectiles. Permanent equipment uses 19 dedicated painted icons with correct names and slot identities. Existing relics retain their stats and equipped positions. See [equipment update notes](GEAR_ART_V042.md), [daily quests and relics](DAILY_RELICS_V040.md), and [enemy progression and level 100](ENEMY_PROGRESSION_V041.md).
 
@@ -149,3 +149,7 @@ The roster now has 30 heroes. Aegis, Bolt, Saur, Lancer, Riftblade, Duelia, Cali
 ## v0.5.1: Hero passives and co-op visibility
 
 Hover your hero portrait for its passive and live counters. Lancer’s third Q hit is airborne; E uses a directional charge trail and arrival impact. Vesper W is always active once learned. All selection portraits share clipped square framing. Host-authoritative bush concealment and passive counters now replicate to guests. See [all thirty passive mechanics and validation](PASSIVES_V051.md). All co-op players need v0.5.1.
+
+## v0.5.2: Hero and item audit
+
+All thirty heroes, 120 skills and 76 items were audited with a full skill/stat/purchase/animation matrix and targeted combat interaction tests. Fixed damage types, independent timed shields, lifesteal/overheal, crit and on-hit interactions, Ignite ticks, Ember targeting, resource caps and farming predictions. See [coverage, fixes and validation](HERO_ITEM_AUDIT_V052.md). All co-op players should update to v0.5.2.

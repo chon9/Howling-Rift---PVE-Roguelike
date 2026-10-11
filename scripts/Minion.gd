@@ -241,10 +241,10 @@ func update_frame(delta: float) -> void:
 		if d <= eff_range:
 			if atk_cd <= 0:
 				queued_attack_target = attack_target
-				attack_windup = clampf(0.15/atk_spd,0.08,0.2)
+				attack_windup = clampf(0.15/effective_atk_spd(),0.08,0.2)
 				if absf(attack_target.world_pos().x-world_pos().x)>0.1: facing_sign = 1 if attack_target.world_pos().x>world_pos().x else -1
 				animator.begin_attack(attack_windup)
-				atk_cd = 1.0 / atk_spd
+				atk_cd = 1.0 / effective_atk_spd()
 		else:
 			_move_toward(attack_target.world_pos(), delta)
 	else:
@@ -269,6 +269,9 @@ func _move_toward(pt: Vector2, delta: float) -> void:
 	moving = true
 	if absf(dir.x)>0.1: facing_sign = 1 if dir.x>0 else -1
 	global_position += (dir / d) * min(d, speed * mult * delta)
+
+func effective_atk_spd() -> float:
+	return atk_spd*(.8 if buffs.has("cripple") else 1.)
 
 func _attack(target) -> void:
 	animator.release_attack(0.22)

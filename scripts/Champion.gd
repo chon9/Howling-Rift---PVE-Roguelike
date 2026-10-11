@@ -415,7 +415,7 @@ func _recompute_stats() -> void:
 	hp_max = hero["hp"] + hero["hp_per_lv"] * lv_ + bonus_hp
 	hp_max *= difficulty_stats.get("health", 1.0)
 	if buffs.has("dominion"):hp_max+=buffs.dominion.health
-	mp_max = 200. if hero_key in ["leesin","zed"] else hero["mp"] + hero["mp_per_lv"] * lv_ + bonus_mp
+	mp_max = 200. if hero_key in ["leesin","zed"] else 0. if hero["mp"]<=0 else hero["mp"] + hero["mp_per_lv"] * lv_ + bonus_mp
 	base_mr = hero.get("mr", 35.0 if auto_type == "melee" else 30.0) + 1.25 * lv_
 	ad = hero["ad"] + hero["ad_per_lv"] * lv_ + bonus_ad
 	hp_regen = hero["hp_regen"] + hero["hp_regen_per_lv"] * lv_ + bonus_hp_regen
@@ -465,7 +465,7 @@ func _apply_items() -> void:
 	for stat in permanent_bonus:
 		set(stat, get(stat) + permanent_bonus[stat])
 	bonus_cdr = min(bonus_cdr, 0.4)
-	if inventory.has("archangel"): bonus_ap += (hero.mp + hero.mp_per_lv * (level - 1) + bonus_mp) * 0.025
+	if inventory.has("archangel"): bonus_ap += (hero.mp + hero.mp_per_lv * (level - 1) + bonus_mp) * 0.025 if hero.mp>0 and hero_key not in ["leesin","zed"] else 0.
 	if inventory.has("rabadon"): bonus_ap *= 1.3
 	if hero_key=="syndra" and passive_state.get("transcendent_ap",false):bonus_ap*=1.15
 	_recompute_stats()
@@ -700,7 +700,7 @@ func _dispatch_cast(cast_id: String, pt: Vector2) -> bool:
 		"ashe_w":  _ashe_w(pt)
 		"ashe_e":  _ashe_e(pt)
 		"ashe_r":  _ashe_r(pt)
-		"annie_q": _annie_q(pt)
+		"annie_q": return _annie_q(pt)
 		"annie_w": _annie_w(pt)
 		"annie_e": _annie_e()
 		"annie_r": _annie_r(pt)
@@ -742,7 +742,7 @@ func _lux_q(pt: Vector2) -> void:
 func _lux_w() -> void:
 	for ally in GameState.champions:
 		if ally.team == team and not ally.dead and ally.world_pos().distance_to(global_position) <= 250:
-			ally.shield = max(ally.shield, 60 + 35 * rank(1) + bonus_ap * 0.5)
+			CombatEffects.shield(ally,"prismatic_shield",60 + 35 * rank(1) + bonus_ap * 0.5,3.,self)
 			HeroPassives.support(self,ally)
 	_spawn_aoe(global_position, 250, 0, Color("ffe9a5"), 0.45)
 
@@ -819,23 +819,25 @@ func _ashe_r(pt: Vector2) -> void:
 	get_tree().call_group("game_main", "camera_shake", 0.2, 4.0)
 
 # ----- Annie -----
-func _annie_q(pt: Vector2) -> void:
+func _annie_q(pt: Vector2) -> bool:
 	var ang = (pt - global_position).angle()
 	var dir = Vector2(cos(ang), sin(ang))
 	var locked = GameState.find_target_at(pt, team, 40)
+	if locked==null or locked.kind=="structure":return false
 	_spawn_projectile(dir, 60.0 + 25.0 * rank(0) + ad * 0.3, 600,
 		Color(1.0, 0.33, 0.0), 12, 0, 2.0, 0.0, 0.0, 0.0, true, 60.0,
 		locked, false, false, "fireball")
+	return true
 
 func _annie_w(pt: Vector2) -> void:
 	var ang = (pt - global_position).angle()
-	var cx = global_position + Vector2(cos(ang), sin(ang)) * 140
-	_spawn_aoe(cx, 180, 70.0 + 30.0 * rank(1) + ad * 0.3,
+	var cx = global_position
+	_spawn_aoe(cx, 300, 70.0 + 30.0 * rank(1) + ad * 0.3,
 		Color(1.0, 0.2, 0.0), 0.5, ang, 1.2)
 	get_tree().call_group("game_main", "camera_shake", 0.08, 2.0)
 
 func _annie_e() -> void:
-	shield = max(shield, 50.0 + 30.0 * rank(2))
+	CombatEffects.shield(self,"molten_shield",50.0 + 30.0 * rank(2),3.)
 	buffs["molten"] = { "time": 3.0, "reflect": 20.0 + 10.0 * rank(2) }
 
 func _annie_r(pt: Vector2) -> void:
@@ -851,7 +853,7 @@ func _garen_q() -> void:
 	buffs["haste"]    = { "time": 1.5, "mult": 1.3 }
 
 func _garen_w() -> void:
-	shield = max(shield, 60.0 + 40.0 * rank(1))
+	CombatEffects.shield(self,"courage_shield",60.0 + 40.0 * rank(1),3.)
 	buffs["courage"] = { "time": 3.0, "dr": 0.3 + 0.03 * rank(1) }
 
 func _garen_e() -> void:
@@ -887,6 +889,14 @@ func update_frame(delta: float) -> void:
 	Roster12Combat.tick(self,delta)
 	HeroPassives.tick(self,delta)
 	if dead:return
+	# Tick damage-over-time before expiry so the final half-second is not lost.
+	if buffs.has("ignite"):
+		var ignite=buffs.ignite
+		ignite.tick=ignite.get("tick",0.)+minf(delta,ignite.time)
+		while ignite.tick>=.5 and not dead:
+			ignite.tick-=.5
+			get_tree().call_group("game_main","deal_damage",ignite.src,self,ignite.total/10.,"exec")
+	if dead:return
 	# Buff decay
 	var expired := []
 	for k in buffs.keys():
@@ -897,15 +907,7 @@ func update_frame(delta: float) -> void:
 		var value = buffs[k].duplicate()
 		buffs.erase(k)
 		NewHeroKits.expire(self,k,value)
-		HeroPassives.expire_shield(self,k,value)
 
-	# Ignite DoT
-	if buffs.has("ignite"):
-		buffs["ignite"]["tick"] = buffs["ignite"].get("tick", 0.0) + delta
-		if buffs["ignite"]["tick"] >= 0.5:
-			buffs["ignite"]["tick"] = 0.0
-			get_tree().call_group("game_main", "deal_damage",
-				buffs["ignite"]["src"], self, buffs["ignite"]["total"] / 10.0, "exec")
 
 	# Cooldowns
 	if dead: return
@@ -935,7 +937,7 @@ func update_frame(delta: float) -> void:
 
 	time_since_damage += delta
 	if inventory.has("warmog") and time_since_damage >= 6:
-		hp = minf(hp_max, hp + hp_max * 0.02 * delta)
+		hp = minf(hp_max, hp + hp_max * 0.02 * delta * ExpansionCombat.healing_multiplier(self))
 	if queued_auto_target != null:
 		if not is_instance_valid(queued_auto_target) or queued_auto_target.dead or not queued_auto_target.is_targetable or not BrushVision.visible_to(queued_auto_target,team):
 			cancel_auto()
@@ -1093,7 +1095,9 @@ func _perform_auto(target) -> void:
 	animator.release_attack(clampf(0.2/effective_atk_spd(),0.08,0.24))
 	get_tree().call_group("game_main", "play_sfx", "attack", self)
 	var frost_slow=(.2+.01*mini(level,18))*(2. if randf()<HeroPassives.critical_chance(self) else 1.) if hero_key=="ashe" else 0.
-	var dmg = ad + Roster12Combat.before_auto(self,target) + HeroPassives.auto_bonus(self,target)
+	var dmg = ad
+	if hero_key!="ashe" and randf() < HeroPassives.critical_chance(self):dmg *= (1.75 + bonus_crit_damage)*(.9 if hero_key=="yasuo" else 1.)
+	dmg += Roster12Combat.before_auto(self,target) + HeroPassives.auto_bonus(self,target)
 	if buffs.has("hunt"):dmg+=buffs.hunt.damage
 	if buffs.has("empowered"):
 		dmg+=buffs.empowered.damage
@@ -1106,9 +1110,8 @@ func _perform_auto(target) -> void:
 		dmg += TankADCombat.spellblade_damage(self)
 		if inventory.has("essence_reaver"): mp = minf(mp_max,mp+mp_max*.08)
 		buffs.erase("spellblade")
-	if hero_key!="ashe" and randf() < HeroPassives.critical_chance(self): dmg *= (1.75 + bonus_crit_damage)*(.9 if hero_key=="yasuo" else 1.)
 	if buffs.has("decisive") and not buffs["decisive"]["used"]:
-		if "buffs" in target: target.buffs["silence"] = {"time": 1.5}
+		if "buffs" in target and not target.buffs.has("cc_guard") and not target.buffs.has("parry"): target.buffs["silence"] = {"time": 1.5}
 		dmg += buffs["decisive"]["bonus"]
 		buffs["decisive"]["used"] = true
 		buffs.erase("decisive")
@@ -1127,7 +1130,7 @@ func _perform_auto(target) -> void:
 			_spawn_projectile(Vector2(cos(a), sin(a)), dmg, 700,
 				hero["auto_color"], 7, 0, 2.0, 0.0,
 				frost_slow, 2.0, false, 0.0, target,
-				false, false, auto_shape, "auto")
+				false, false, auto_shape, "attack_fragment" if i>0 else "auto")
 
 # ============== Bot AI ==============
 func estimate_kill_damage(target) -> float:

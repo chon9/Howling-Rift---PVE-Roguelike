@@ -41,7 +41,7 @@ var CHAMPIONS = {
 		"auto_type":"ranged", "auto_color":Color("ffe9a5"), "priority":[3,2,0,1],
 		"skills":[
 			{"key":"Q","name":"Light Binding","icon":"✧","cost":50,"cd":9.0,"max":5,"kind":"line","range":580.0,"desc":"Light bolt stuns up to two enemies for 1.5s.","cast_id":"lux_q"},
-			{"key":"W","name":"Prismatic Barrier","icon":"◇","cost":50,"cd":12.0,"max":5,"kind":"self","range":0.0,"desc":"Shield yourself and allied champions within 250 units.","cast_id":"lux_w"},
+			{"key":"W","name":"Prismatic Barrier","icon":"◇","cost":50,"cd":12.0,"max":5,"kind":"self","range":0.0,"desc":"Shield yourself and allied champions within 250 units for 3 seconds.","cast_id":"lux_w"},
 			{"key":"E","name":"Lucent Singularity","icon":"✺","cost":65,"cd":8.0,"max":5,"kind":"point","range":500.0,"desc":"Detonate a light field that damages and slows enemies.","cast_id":"lux_e"},
 			{"key":"R","name":"Final Spark","icon":"━","cost":100,"cd":45.0,"max":3,"kind":"line","range":1100.0,"desc":"Fire a piercing laser through every enemy in its path.","cast_id":"lux_r"}
 		]
@@ -123,7 +123,7 @@ var CHAMPIONS = {
 				"kind":"cone", "range":300.0, "desc":"Flame cone — damages everything in a wide arc.",
 				"cast_id":"annie_w" },
 			{ "key":"E", "name":"Molten Shield", "icon":"🛡️", "cost":30, "cd":10.0, "max":5,
-				"kind":"self", "range":0.0, "desc":"Shield + reflect damage.",
+				"kind":"self", "range":0.0, "desc":"3-second shield + reflect damage.",
 				"cast_id":"annie_e" },
 			{ "key":"R", "name":"Summon: Cinderbear", "icon":"🐻", "cost":100, "cd":90.0, "max":3,
 				"kind":"point", "range":400.0, "desc":"AoE blast + summon Cinderbear for 45s.",
@@ -148,7 +148,7 @@ var CHAMPIONS = {
 				"kind":"self", "range":0.0, "desc":"Burst of speed. Next attack silences and deals bonus damage.",
 				"cast_id":"garen_q" },
 			{ "key":"W", "name":"Courage", "icon":"🛡️", "cost":0, "cd":20.0, "max":5,
-				"kind":"self", "range":0.0, "desc":"Shield + damage reduction.",
+				"kind":"self", "range":0.0, "desc":"3-second shield + damage reduction.",
 				"cast_id":"garen_w" },
 			{ "key":"E", "name":"Judgment", "icon":"🌀", "cost":0, "cd":9.0, "max":5,
 				"kind":"self", "range":0.0, "desc":"Spin for 3s dealing damage to nearby enemies.",

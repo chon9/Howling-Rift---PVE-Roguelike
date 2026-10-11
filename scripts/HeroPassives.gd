@@ -245,9 +245,6 @@ static func tick(c,delta: float) -> void:
 static func support(src,ally) -> void:
  if not is_instance_valid(src) or not is_instance_valid(ally) or src==ally or ally.kind!="champion" or ally.hero_key!="lucian" or src.team!=ally.team:return
  ally.buffs.vigilance={"time":6.,"hits":2}
-static func expire_shield(c,key: String,b: Dictionary) -> void:
- if key in ["flow_shield","mana_barrier"]:c.shield=maxf(0.,c.shield-b.shield)
-
 static func cooldowns(c,delta: float) -> void:
  if c.hero_key!="syndra" or c.passive_state.get("splinters",0)<40:return
  var p=c.passive_state

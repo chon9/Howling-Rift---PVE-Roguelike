@@ -28,6 +28,7 @@ static func on_spell(src,target,kind: String) -> void:
  if src.inventory.has("morello"):target.buffs.grievous={"time":3.}
 static func after_hit(src,target,kind: String) -> void:
  Roster12Combat.after_hit(src,target,kind)
+ if kind=="secondary_auto":kind="auto"
  TankADCombat.after_hit(src,target,kind)
  if kind!="auto" or not is_instance_valid(src) or src.kind!="champion" or target.dead or target.kind=="structure":return
  if src.hero_key=="thresh" and src.rank(2)>0:
@@ -51,7 +52,7 @@ static func lifeline(target,kind: String="auto",src=null) -> void:
 static func tick(c,delta: float) -> void:
  TankADCombat.tick(c,delta)
  if c.kind=="champion" and c.inventory.has("frozen_heart"):
-  for enemy in GameState.champions:
+  for enemy in GameState.champions+GameState.minions:
    if enemy.team!=c.team and not enemy.dead and enemy.world_pos().distance_to(c.world_pos())<300:enemy.buffs.cripple={"time":.2}
  if c.buffs.has("item_burn"):
   var burn=c.buffs.item_burn;burn.tick-=delta
@@ -59,4 +60,4 @@ static func tick(c,delta: float) -> void:
    burn.tick=1.
    if is_instance_valid(burn.src):NewHeroKits.hit(burn.src,c,minf(30,c.hp_max*.01) if c.kind=="minion" else c.hp_max*.01,"burn")
 static func expire(c,key: String) -> void:
- if key in ["lifeline","locket_shield"]:c.shield=maxf(0,c.shield-c.buffs[key].shield)
+ if c.buffs[key].has("shield"):c.shield=maxf(0,c.shield-c.buffs[key].shield)

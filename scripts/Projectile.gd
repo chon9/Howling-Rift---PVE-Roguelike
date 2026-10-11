@@ -61,7 +61,7 @@ func configure_presentation() -> void:
 	visual_height = 52.0*Constants.CHAMP_ART_SCALE if hero else 18.0 if is_instance_valid(src) and src.kind == "minion" else 0.0
 	var body_height = Constants.CHAMP_ART_HEIGHT if hero else 70.0
 	var width = clampf(size*3.8,22.0,body_height*(0.85 if is_ult else 0.60))
-	if damage_type=="auto" and hero: width=body_height*0.32
+	if damage_type in ["auto","secondary_auto","attack_fragment"] and hero: width=body_height*0.32
 	visual_dimensions=Vector2(width,width*(0.44 if is_ult else 0.58))
 	if is_vesper_bolt():
 		visual_dimensions=Vector2(28,9) if effect_id=="vayne_auto" else Vector2(34,12)
@@ -297,12 +297,12 @@ func update_frame(delta: float) -> void:
 			dmg*=falloff
 			if thresh_mark and is_instance_valid(src) and not u.dead and "buffs" in u and not u.buffs.has("cc_guard") and not u.buffs.has("spell_guard"):
 				u.buffs.chain_mark = {"time":1.5,"src":src}
-			if sonic_mark and is_instance_valid(src) and not u.dead and "buffs" in u:
+			if sonic_mark and is_instance_valid(src) and not u.dead and "buffs" in u and not u.buffs.has("spell_guard") and not u.buffs.has("parry"):
 				u.buffs.sonic_mark = {"time":4.0,"src":src}
 				src.sonic_target = u
 			if explosion > 0:
 				get_tree().call_group("game_main","spawn_aoe",src,u.world_pos(),{"radius":explosion,"dmg":dmg*0.65,"duration":0.35,"color":color,"hit_set":[u]})
-			if mark_bonus > 0 and "buffs" in u:
+			if mark_bonus > 0 and "buffs" in u and not u.buffs.has("spell_guard") and not u.buffs.has("parry"):
 				u.buffs["flux_mark"] = {"time":4.0, "src":src, "bonus":mark_bonus}
 			var guarded="buffs" in u and (u.buffs.has("cc_guard") or u.buffs.has("spell_guard") or u.buffs.has("parry"))
 			if pull_distance>0 and not guarded and u.kind!="structure" and is_instance_valid(src):

@@ -61,6 +61,11 @@ func run() -> void:
    var portrait=portraits.texture_for(hero)
    check(portrait.filter_clip and is_equal_approx(portrait.get_width(),portrait.get_height()),"exported square portrait "+hero)
   check(load("res://scripts/SteamSession.gd").PROTOCOL=="5","export uses passive/vision network protocol")
+  var combat_effects=load("res://scripts/CombatEffects.gd");var original_shield=state.player.shield
+  combat_effects.shield(state.player,"export_audit_shield",100.,3.)
+  check(is_equal_approx(state.player.shield,original_shield+100.),"exported timed shield preserves existing shield")
+  load("res://scripts/ExpansionCombat.gd").expire(state.player,"export_audit_shield");state.player.buffs.erase("export_audit_shield")
+  check(is_equal_approx(state.player.shield,original_shield),"exported timed shield expiry is independent")
   var passive_snapshot=load("res://scripts/LanSnapshot.gd").encode().champs[0]
   check(passive_snapshot.has("passive_state") and passive_snapshot.vision_teams.size()==2,"export serializes passive counters and team visibility")
   check(root.get_node("ChampionData").CHAMPIONS.vayne.skills[1].kind=="passive","exported Vesper W stays passive")

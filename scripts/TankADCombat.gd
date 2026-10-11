@@ -9,11 +9,11 @@ static func damage_multiplier(src,target,kind: String) -> float:
  var mult=1.
  if is_instance_valid(src) and src.kind=="champion" and src.inventory.has("shojin") and kind in ["skill","magic","physical"]:
   mult*=1.+.03*src.buffs.get("shojin",{}).get("stacks",0)
- if target.kind!="champion" or kind in ["exec","mark"]:return mult
+ if target.kind!="champion" or kind=="exec":return mult
  var magic=ExpansionCombat.is_magic(src,kind)
  if not magic and target.inventory.has("deaths_dance"):mult*=.85
  if magic and target.inventory.has("force_nature") and target.buffs.has("nature_guard"):mult*=.85
- if kind=="auto":
+ if kind in ["auto","secondary_auto","attack_fragment"]:
   if target.inventory.has("plated_steelcaps"):mult*=.9
   if target.inventory.has("randuin"):mult*=.85
  return mult
@@ -28,7 +28,7 @@ static func on_damage(src,target,kind: String,damage: float) -> void:
   var stacks=mini(3,int(target.buffs.get("nature_stacks",{}).get("stacks",0))+1)
   target.buffs.nature_stacks={"time":8.,"stacks":stacks}
   if stacks==3:target.buffs.nature_guard={"time":5.}
- if kind=="auto" and is_instance_valid(src) and src.kind in ["champion","minion"]:
+ if kind in ["auto","secondary_auto"] and is_instance_valid(src) and src.kind in ["champion","minion"]:
   if target.inventory.has("bramble") or target.inventory.has("thornmail"):src.buffs.grievous={"time":3.}
   if target.inventory.has("randuin") and src.kind=="champion" and not src.buffs.has("cc_guard"):src.buffs.slow={"time":maxf(1.,src.buffs.get("slow",{}).get("time",0.)),"pct":maxf(.2,src.buffs.get("slow",{}).get("pct",0.))}
 static func on_spell(src,target,kind: String) -> void:
@@ -39,7 +39,7 @@ static func on_spell(src,target,kind: String) -> void:
 static func lifeline(c,kind: String,projected_hp: float=-1.) -> void:
  if c.kind!="champion" or c.hp<=0:return
  var health=c.hp if projected_hp<0. else projected_hp
- var magic=kind=="magic" or kind in ["item_magic","burn"] or kind=="legacy_magic"
+ var magic=kind=="magic" or kind in ["item_magic","burn","passive_magic"] or kind=="legacy_magic"
  var shield_ratio=.25 if c.inventory.has("sterak") else .25 if magic and c.inventory.has("maw") else .15 if magic and c.inventory.has("hexdrinker") else 0.
  var ready=true
  for item in ["sterak","maw","hexdrinker"]:
@@ -58,12 +58,13 @@ static func lifeline(c,kind: String,projected_hp: float=-1.) -> void:
    grant=maxf(grant,previous)
    ally.shield=maxf(0.,ally.shield-previous)+grant;HeroPassives.support(c,ally)
    ally.buffs.locket_shield={"time":3.,"shield":grant}
-static func consume_shield(c,amount: float) -> void:
- if not "buffs" in c:return
- for key in ["locket_shield","lifeline","flow_shield","mana_barrier","valor"]:
-  if c.buffs.has(key):
+static func consume_shield(c,amount: float) -> float:
+ if not "buffs" in c:return amount
+ for key in c.buffs:
+  if c.buffs[key].has("shield"):
    var used=minf(amount,c.buffs[key].shield)
    c.buffs[key].shield-=used;amount-=used
+ return amount
 static func after_hit(src,target,kind: String) -> void:
  if kind!="auto" or not is_instance_valid(src) or src.kind!="champion" or src.dead or target.kind=="structure":return
  if src.inventory.has("sundered_sky") and target.kind=="champion":

@@ -17,8 +17,8 @@ func _ready() -> void:
   GameState.champions.append(c);c.global_position=Vector2(1150,270);c.level=3;c.skill_ranks=[1,1,1,1];c._recompute_stats();c.mp=c.mp_max
   check(c.mp_max>=350 and c.mp_regen>0,"real starting mana and regeneration: "+key)
   var before=c.mp
-  check(c.try_cast_skill(1,c.world_pos()),"cast W with actual starting resource: "+key)
-  check(is_equal_approx(before-c.mp,c.hero.skills[1].cost),"casts spend advertised mana: "+key)
+  check(c.try_cast_skill(0,c.world_pos()+Vector2(40,0)) if key=="vayne" else c.try_cast_skill(1,c.world_pos()),"cast W with actual starting resource: "+key)
+  check(is_equal_approx(before-c.mp,c.hero.skills[0 if key=="vayne" else 1].cost),"casts spend advertised mana: "+key)
   c.mp=0;c.skill_cds=[0.,0.,0.,0.]
   check(not c.try_cast_skill(1,c.world_pos()),"empty mana blocks casting: "+key)
   c.update_frame(.1);check(c.mp>0,"resource regenerates: "+key)
@@ -61,7 +61,7 @@ func _ready() -> void:
  var image=texture.get_image()
  check(image.get_pixel(0,0).a==0.,"projectile sheet preserves generated transparency")
  for key in ExpansionRoster.KEYS:
-  var source=GameState.champions.filter(func(c):return c.hero_key==key)[0]
+  var source=GameState.champions.filter(func(c):return c.hero_key==key and c.team==0).back()
   var p=game.ProjectileS.new();game.world_root.add_child(p);p.setup(source,Vector2(1300,270),Vector2.RIGHT,{"damage_type":"magic","life":2.})
   GameState.projectiles.append(p)
   check(p.expansion_art and p.art_row==ExpansionRoster.KEYS.find(key),"projectile selects correct identity row: "+key)
@@ -72,7 +72,7 @@ func _ready() -> void:
  check(packet.champs[0].has("base_mr") and packet.projectiles.back().expansion_art,"co-op replicates innate MR and new projectile identity")
  for p in GameState.projectiles:p.queue_free()
  GameState.projectiles.clear()
- var vayne=GameState.champions.filter(func(c):return c.hero_key=="vayne")[0]
+ var vayne=GameState.champions.filter(func(c):return c.hero_key=="vayne" and c.team==0).back()
  vayne.global_position=Vector2(1350,270);enemy.global_position=Vector2(1500,270);enemy.buffs.clear();enemy.stun=0
  var hp=enemy.hp;var point=enemy.world_pos()
  check(ExpansionKits.cast(vayne,"vayne_e",point),"Condemn casts homing bolt")

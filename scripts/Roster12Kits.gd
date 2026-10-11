@@ -32,16 +32,17 @@ static func control(u,seconds: float,slow: float=0.) -> void:
  if u.kind=="champion" and u.inventory.has("banshee") and u.item_cds.get("banshee",0.)<=0:return
  if slow>0:u.buffs.slow={"time":seconds,"pct":slow}
  else:u.stun=maxf(u.stun,seconds)
-static func physical(c) -> bool:
+static func physical(c,id: String="") -> bool:
+ if id in ["xinzhao_e","fiora_w","caitlyn_e","lucian_w"]:return false
  return c.hero_key in ["renekton","xinzhao","riven","fiora","caitlyn","lucian","sivir"]
 static func hit(c,u,id: String,mult: float=1.) -> void:
- c.get_tree().call_group("game_main","deal_damage",c,u,amount(c,id)*mult,"magic" if id=="xinzhao_e" or not physical(c) else "physical",id)
+ c.get_tree().call_group("game_main","deal_damage",c,u,amount(c,id)*mult,"magic" if not physical(c,id) else "physical",id)
 static func visual(c,point: Vector2,id: String,radius: float=90.,duration: float=.4,opts: Dictionary={}) -> void:
  opts=opts.duplicate();opts.merge({"effect_id":id,"duration":duration},false);NewHeroKits.area(c,point,radius,0,opts)
 static func area(c,point: Vector2,id: String,radius: float,opts: Dictionary={}) -> void:
- opts=opts.duplicate();opts.merge({"effect_id":id,"damage_type":"magic" if id=="xinzhao_e" or not physical(c) else "physical"},false);NewHeroKits.area(c,point,radius,amount(c,id),opts)
+ opts=opts.duplicate();opts.merge({"effect_id":id,"damage_type":"magic" if not physical(c,id) else "physical"},false);NewHeroKits.area(c,point,radius,amount(c,id),opts)
 static func bolt(c,point: Vector2,id: String,opts: Dictionary={}) -> void:
- opts=opts.duplicate();opts.merge({"effect_id":id,"damage_type":"magic" if id=="xinzhao_e" or not physical(c) else "physical","size":10.,"life":c.hero.skills[["q","w","e","r"].find(id.get_slice("_",1))].range/750.},false)
+ opts=opts.duplicate();opts.merge({"effect_id":id,"damage_type":"magic" if not physical(c,id) else "physical","size":10.,"life":c.hero.skills[["q","w","e","r"].find(id.get_slice("_",1))].range/750.},false)
  NewHeroKits.projectile(c,c.world_pos(),(point-c.world_pos()).normalized(),amount(c,id),opts)
 static func dash(c,point: Vector2) -> bool:
  point=GameState.clamp_walkable(point)

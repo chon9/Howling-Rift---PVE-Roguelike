@@ -178,7 +178,7 @@ func _update_zone() -> void:
 		if not is_instance_valid(src) or src.dead:return
 		for ally in GameState.champions:
 			if ally.dead or ally.team!=team or hit_set.has(ally) or ally.world_pos().distance_to(global_position)>100:continue
-			ally.shield=maxf(ally.shield,dmg);HeroPassives.support(src,ally);hit_set.append(ally)
+			CombatEffects.shield(ally,"lantern_shield",dmg,4.,src);hit_set.append(ally)
 		return
 	for unit in GameState.champions+GameState.minions:
 		if unit.dead or unit.team==team or (zone_kind=="box" and unit.kind!="champion"):continue

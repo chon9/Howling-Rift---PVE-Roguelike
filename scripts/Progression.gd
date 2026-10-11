@@ -11,6 +11,10 @@ const UPGRADES = {
 }
 var music_volume: float = 0.28
 var smart_cast: bool = true
+var allied_bots: bool = true
+var edge_smoothing: bool = true
+var frame_limit: int = 120
+var vsync_enabled: bool = true
 var credits: int = 0
 var difficulty: int = 1
 var levels: Dictionary = {}
@@ -46,6 +50,11 @@ func load_profile() -> void:
 		return
 	music_volume = clampf(float(file.get_value("audio","music_volume",0.28)),0,1)
 	smart_cast = bool(file.get_value("controls","smart_cast",true))
+	allied_bots = bool(file.get_value("match","allied_bots",true))
+	edge_smoothing = bool(file.get_value("graphics","edge_smoothing",true))
+	vsync_enabled = bool(file.get_value("graphics","vsync",true))
+	frame_limit = int(file.get_value("graphics","frame_limit",120))
+	if frame_limit not in [0,60,120,144,240]: frame_limit = 120
 	credits = clampi(int(file.get_value("profile", "credits", 0)), 0, 2000000000)
 	difficulty = clampi(int(file.get_value("profile", "difficulty", 1)), 1, 99)
 	for key in UPGRADES: levels[key] = clampi(int(file.get_value("upgrades", key, 0)), 0, 99)
@@ -73,6 +82,10 @@ func save_profile() -> bool:
 	var file = ConfigFile.new()
 	file.set_value("audio","music_volume",music_volume)
 	file.set_value("controls","smart_cast",smart_cast)
+	file.set_value("match","allied_bots",allied_bots)
+	file.set_value("graphics","edge_smoothing",edge_smoothing)
+	file.set_value("graphics","frame_limit",frame_limit)
+	file.set_value("graphics","vsync",vsync_enabled)
 	file.set_value("profile", "credits", credits)
 	file.set_value("profile", "difficulty", difficulty)
 	for key in UPGRADES: file.set_value("upgrades", key, int(levels.get(key, 0)))

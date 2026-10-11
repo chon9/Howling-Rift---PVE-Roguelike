@@ -10,10 +10,10 @@ func _ready() -> void:
  check(GameUpdates.newer("1.0.0","0.99.99"),"major upgrade compares numerically")
  check(not GameUpdates.newer("0.4.4","0.4.4") and not GameUpdates.newer("0.4.2","0.4.4"),"no same-version update or downgrade")
  for bad in ["v0.4.4-beta","0.4.4/evil","../../1.0.0","unknown"]:check(GameUpdates.version_parts(bad).is_empty(),"invalid version rejected")
- var prefix="https://github.com/"+GameUpdates.REPO+"/releases/download/v0.5.3/"
- var name="Howling-Rift-v0.5.3-Spacewar.zip"
- var manifest={"tag_name":"v0.5.3","draft":false,"prerelease":false,"assets":[{"name":name,"browser_download_url":prefix+name},{"name":name+".sha256","browser_download_url":prefix+name+".sha256"}]}
- check(GameUpdates.parse_release(manifest).version=="0.5.3","complete official release accepted")
+ var prefix="https://github.com/"+GameUpdates.REPO+"/releases/download/v0.5.4/"
+ var name="Howling-Rift-v0.5.4-Spacewar.zip"
+ var manifest={"tag_name":"v0.5.4","draft":false,"prerelease":false,"assets":[{"name":name,"browser_download_url":prefix+name},{"name":name+".sha256","browser_download_url":prefix+name+".sha256"}]}
+ check(GameUpdates.parse_release(manifest).version=="0.5.4","complete official release accepted")
  var unsafe=manifest.duplicate(true);unsafe.assets[0].browser_download_url="https://evil.example/update.zip"
  check(GameUpdates.parse_release(unsafe).is_empty(),"untrusted download rejected")
  unsafe=manifest.duplicate(true);unsafe.assets.pop_back()
@@ -21,7 +21,7 @@ func _ready() -> void:
  unsafe=manifest.duplicate(true);unsafe.prerelease=true
  check(GameUpdates.parse_release(unsafe).is_empty(),"prerelease does not replace stable installation")
  GameUpdates.auto_download=false;GameUpdates._checked(HTTPRequest.RESULT_SUCCESS,200,PackedStringArray(),JSON.stringify(manifest).to_utf8_buffer())
- check(GameUpdates.phase=="available" and GameUpdates.latest=="0.5.3","main menu can show latest version")
+ check(GameUpdates.phase=="available" and GameUpdates.latest=="0.5.4","main menu can show latest version")
  GameUpdates._checked(HTTPRequest.RESULT_CANT_CONNECT,0,PackedStringArray(),PackedByteArray())
  check(GameUpdates.phase=="error" and GameUpdates.status.contains("still play"),"offline failure remains playable")
  GameState.reset();Progression.persistent=false;Progression.levels.clear()

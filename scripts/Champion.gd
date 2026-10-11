@@ -70,6 +70,10 @@ var stun: float = 0.0
 var kills: int = 0
 var deaths: int = 0
 var assists: int = 0
+var roster_active: bool = true
+var assist_hits: Dictionary = {}
+var assist_support: Dictionary = {}
+
 var recall_time: float = -1.0
 var recall_duration: float = 1.0
 
@@ -153,6 +157,20 @@ func rank(i: int) -> int:
 
 func is_structure_attackable() -> bool:
 	return false
+
+func disable_roster_slot() -> void:
+	roster_active = false
+	stop_actions()
+	dead = true
+	hp = 0
+	shield = 0
+	buffs.clear()
+	assist_hits.clear()
+	assist_support.clear()
+	is_targetable = false
+	respawn_at = INF
+	hide()
+
 
 func setup(_team: int, _hero_key: String, _is_bot: bool, _name: String) -> void:
 	team = _team

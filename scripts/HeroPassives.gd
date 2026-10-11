@@ -243,6 +243,7 @@ static func tick(c,delta: float) -> void:
    p.cc_seen=seen
  p.last_position=c.world_pos()
 static func support(src,ally) -> void:
+ CombatParticipation.support(src,ally)
  if not is_instance_valid(src) or not is_instance_valid(ally) or src==ally or ally.kind!="champion" or ally.hero_key!="lucian" or src.team!=ally.team:return
  ally.buffs.vigilance={"time":6.,"hits":2}
 static func cooldowns(c,delta: float) -> void:

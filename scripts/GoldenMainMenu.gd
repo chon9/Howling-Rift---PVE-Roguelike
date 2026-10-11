@@ -138,6 +138,13 @@ func _ready() -> void:
  balance.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
  line(Vector2(1530,144),Vector2(260,1),Color(.75,.60,.34,.5))
  action("DAILY QUESTS / EQUIPMENT",Vector2(1440,180),Vector2(370,58),func():game._show_equipment())
+ var bots_card=Panel.new();bots_card.position=Vector2(1440,324);bots_card.size=Vector2(370,102)
+ bots_card.add_theme_stylebox_override("panel",box(Color(.025,.04,.065,.94),Color("6e5d3b")))
+ bots_card.mouse_filter=Control.MOUSE_FILTER_IGNORE;design.add_child(bots_card)
+ var bots=RiftMenus.bot_picker(design)
+ bots.position=Vector2(1455,330);bots.size=Vector2(340,48)
+ bots.add_theme_color_override("font_color",GOLD)
+ text("Off: humans only vs 3 enemy heroes",Vector2(1455,380),16,MUTED,340)
  Progression.refresh_daily()
  var daily_card=Panel.new();daily_card.position=Vector2(1440,245);daily_card.size=Vector2(370,62)
  daily_card.add_theme_stylebox_override("panel",box(Color(.025,.04,.065,.90),Color("6e5d3b")))

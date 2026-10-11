@@ -56,7 +56,9 @@ static func lobby(game) -> void:
  panel.add_theme_constant_override("separation",12)
  panel.add_child(label("STEAM CO-OP" if LanSession.transport=="steam" else "LAN CO-OP",48))
  panel.add_child(label("Up to three players on the blue team",22))
- if LanSession.is_host(): difficulty_picker(panel)
+ if LanSession.is_host():
+  difficulty_picker(panel)
+  bot_picker(panel)
  else: panel.add_child(label("The host chooses N1–N99 before starting.",20))
  game.menu_status = label("",20)
  game.menu_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -112,3 +114,14 @@ static func difficulty_picker(panel: VBoxContainer) -> void:
   Progression.difficulty = clampi(int(value),1,99)
   Progression.save_profile()
   preview.text = Progression.reward_preview(Progression.difficulty))
+
+static func bot_picker(parent: Control) -> CheckButton:
+ var toggle = CheckButton.new()
+ toggle.name = "AlliedBots"
+ toggle.text = "FILL ALLIED SLOTS WITH AI"
+ toggle.button_pressed = Progression.allied_bots
+ toggle.add_theme_font_size_override("font_size",18)
+ toggle.tooltip_text = "Choose before starting. Off: play solo or with human co-op teammates against three enemy heroes. Allied minions remain. Disconnected players are not replaced by bots. The host chooses this rule for everyone."
+ toggle.toggled.connect(func(enabled): Progression.allied_bots = enabled; Progression.save_profile())
+ parent.add_child(toggle)
+ return toggle

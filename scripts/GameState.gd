@@ -7,6 +7,7 @@ var started: bool = false
 var paused: bool = false
 var difficulty: int = 1
 var reward_difficulty: int = 1
+var allied_bots: bool = true
 var time: float = 0.0
 
 var player = null
@@ -29,6 +30,7 @@ var cam_locked: bool = true
 var attack_move_pending: bool = false
 
 func reset() -> void:
+	allied_bots = true
 	paused = false
 	running = false
 	started = false

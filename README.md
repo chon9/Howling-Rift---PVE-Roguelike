@@ -3,9 +3,9 @@
 An ARAM-only, LoL-inspired 3v3 PvE game built with Godot 4. Arena mode has been removed.
 
 
-Current release: **v0.5.2**. [Download the Windows build](https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/latest). Extract the entire ZIP and run **Howling Rift.exe**. Start Steam for Spacewar co-op; solo and LAN play are also available.
+Current release: **v0.5.3**. [Download the Windows build](https://github.com/chon9/Howling-Rift---PVE-Roguelike/releases/latest). Extract the entire ZIP and run **Howling Rift.exe**. Start Steam for Spacewar co-op; solo and LAN play are also available.
 
-The latest update implements all thirty hero passives, fixes Lancer’s third-hit knockup and charge effect, standardizes hero portraits, and fixes co-op bush concealment. See [passive and combat notes](PASSIVES_V051.md). Also restores Thresh’s connecting hook chain in co-op. See [multiplayer hook fix](HOOK_COOP_V045.md). Includes automatic version checking, verified background updates, smoother co-op networking and brighter Vesper projectiles. Permanent equipment uses 19 dedicated painted icons with correct names and slot identities. Existing relics retain their stats and equipped positions. See [equipment update notes](GEAR_ART_V042.md), [daily quests and relics](DAILY_RELICS_V040.md), and [enemy progression and level 100](ENEMY_PROGRESSION_V041.md).
+The latest update adds 75g assist rewards for recent combat/support participation, an allied-bot fill switch for solo/co-op, and world-only FXAA with frame-limit and V-sync controls. See [assist, bot and graphics notes](ASSISTS_BOTS_GRAPHICS_V053.md). Previous updates implement all thirty hero passives, fixes Lancer’s third-hit knockup and charge effect, standardizes hero portraits, and fixes co-op bush concealment. See [passive and combat notes](PASSIVES_V051.md). Also restores Thresh’s connecting hook chain in co-op. See [multiplayer hook fix](HOOK_COOP_V045.md). Includes automatic version checking, verified background updates, smoother co-op networking and brighter Vesper projectiles. Permanent equipment uses 19 dedicated painted icons with correct names and slot identities. Existing relics retain their stats and equipped positions. See [equipment update notes](GEAR_ART_V042.md), [daily quests and relics](DAILY_RELICS_V040.md), and [enemy progression and level 100](ENEMY_PROGRESSION_V041.md).
 
 Source includes the Windows GodotSteam extension and its license. Install Godot 4.6.3 or newer to edit and run the project; release builds use Godot 4.7.2. Generated caches, personal saves, test captures and local engine binaries are excluded from version control.
 
@@ -54,7 +54,7 @@ Steam internet co-op is also available for development testing with Spacewar
 (AppID 480). Choose **Host Steam** or **Join Steam** on the title screen.
 See [Steam multiplayer setup and testing](STEAM_MULTIPLAYER.md).
 
-Run the same game build on all PCs on your local network. One player selects **Host LAN Co-op**. The lobby shows the host's LAN IP. The other two enter that IP on the title screen and select **Join LAN**. Everyone chooses a hero and two summoners, then presses **Ready**. The host starts the match. Up to three humans share the blue team; empty slots are filled by AI.
+Run the same game build on all PCs on your local network. One player selects **Host LAN Co-op**. The lobby shows the host's LAN IP. The other two enter that IP on the title screen and select **Join LAN**. Everyone chooses a hero and two summoners, then presses **Ready**. The host starts the match. Up to three humans share the blue team; empty slots are filled by AI when **Fill allied slots with AI** is enabled. Turn it off before starting to play with humans only against three enemy heroes. The host chooses this rule; allied minions remain.
 
 The host controls difficulty and runs combat. Every guest controls their own hero, shops, ranks skills and chooses their own level-earned build upgrades. Camera, inventory and HUD follow the local player. Each player receives permanent completion credits in their own local profile. Returning to the menu during an unfinished match does not grant completion credits.
 

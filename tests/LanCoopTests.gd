@@ -2,6 +2,11 @@ extends Node
 var failures = 0
 var role: String = "host"
 var game
+var observed_w: Dictionary = {}
+func _process(_delta: float) -> void:
+ if not LanSession.is_client() or not GameState.started: return
+ for c in GameState.champions:
+  if c.anim_action == "w": observed_w[c.owner_peer] = true
 func check(value: bool,text: String) -> void:
  if not value: failures += 1; push_error("FAIL "+role+": "+text)
 func until(predicate: Callable,seconds: float = 12) -> bool:
@@ -64,7 +69,7 @@ func _ready() -> void:
   check(await until(func(): return p.world_pos().x >= 540,5),"movement replicated from server")
   p.try_cast_skill(1,p.world_pos()+Vector2(60,0))
   check(await until(func(): return p.skill_cds[1] > 0,2),"skill executes on host")
-  check(p.anim_action == "w","guest receives the authoritative W cast animation")
+  check(p.anim_action == "w" or observed_w.has(p.owner_peer),"guest receives the authoritative W cast animation")
   game.cast_summoner(p,1)
   check(await until(func(): return p.summoner_cds[1] > 0,2),"chosen summoner executes on host")
   check(await until(func(): return game.lane_augments.pending == [4],4),"own level-up draft replicated")

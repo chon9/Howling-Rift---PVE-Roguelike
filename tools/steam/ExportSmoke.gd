@@ -14,6 +14,9 @@ func run() -> void:
  check(manifest is Dictionary and not manifest.is_empty(),"animation manifest ships in PCK")
  var game=load("res://scripts/Main.gd").new();root.add_child(game)
  check(game.menu_page=="main","export boots to main menu")
+ check(game.menu.find_child("AlliedBots",true,false)!=null,"export exposes allied-bot rule")
+ check(game.graphics_quality.screen.material.shader!=null and game.graphics_quality.layer<game.hud.layer,"export contains world-only FXAA below HUD")
+ check(load("res://scripts/CombatParticipation.gd").ASSIST_GOLD==75,"export has small assist gold reward")
  var updater=root.get_node("GameUpdates")
  check(FileAccess.file_exists("res://assets/updater/UpdateGame.ps1"),"exported updater helper ships")
  check(game.menu.find_child("UpdateAction",true,false)!=null,"exported menu shows update action")
@@ -60,7 +63,7 @@ func run() -> void:
    check(passives.DATA.has(hero),"exported passive metadata "+hero)
    var portrait=portraits.texture_for(hero)
    check(portrait.filter_clip and is_equal_approx(portrait.get_width(),portrait.get_height()),"exported square portrait "+hero)
-  check(load("res://scripts/SteamSession.gd").PROTOCOL=="5","export uses passive/vision network protocol")
+  check(load("res://scripts/SteamSession.gd").PROTOCOL=="6","export uses roster/assist network protocol")
   var combat_effects=load("res://scripts/CombatEffects.gd");var original_shield=state.player.shield
   combat_effects.shield(state.player,"export_audit_shield",100.,3.)
   check(is_equal_approx(state.player.shield,original_shield+100.),"exported timed shield preserves existing shield")

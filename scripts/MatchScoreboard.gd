@@ -91,13 +91,15 @@ func _ready() -> void:
     icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     row.add_child(icon)
     icons.append(icon)
-   rows[champion] = {"hero":hero,"level":level,"kda":kda,"cs":cs,"gold":gold,"icons":icons,"portrait":portrait}
+   rows[champion] = {"hero":hero,"level":level,"kda":kda,"cs":cs,"gold":gold,"icons":icons,"portrait":portrait,"panel":panel}
  refresh()
 func refresh() -> void:
  summary.text = "BLUE %d  —  %d RED     •     MATCH SCOREBOARD" % [GameState.score[0],GameState.score[1]]
  for champion in rows:
   if not is_instance_valid(champion): continue
   var row = rows[champion]
+  row.panel.visible = champion.roster_active
+  if not champion.roster_active: continue
   var state = " • Respawn %ds" % maxi(0,ceili(champion.respawn_at-GameState.time)) if champion.dead else ""
   row.hero.text = champion.hero.name+"\n"+champion.char_name+state
   row.level.text = str(champion.level)

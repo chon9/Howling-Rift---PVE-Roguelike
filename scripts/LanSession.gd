@@ -114,7 +114,8 @@ func _peer_left(peer: int) -> void:
     c.owner_peer = 0
     c.is_bot = true
     c.stop_actions()
-    c.char_name += " (AI)"
+    if not GameState.allied_bots: c.disable_roster_slot()
+    c.char_name += " (AI)" if GameState.allied_bots else " (Disconnected)"
     c.name_label.text = c.char_name
  else: _lobby.rpc(players)
  refresh_lobby()
@@ -175,7 +176,7 @@ func start_match() -> void:
  for hero in reds:
   if blues.size() >= 3: break
   if not blues.has(hero): blues.append(hero)
- var config = {"players":configs,"blue":blues,"red":MatchRoster.enemy_team(blues),"stage":Progression.difficulty}
+ var config = {"players":configs,"blue":blues,"red":MatchRoster.enemy_team(blues),"stage":Progression.difficulty,"allied_bots":Progression.allied_bots}
  match_started = true
  multiplayer.multiplayer_peer.refuse_new_connections = true
  if transport == "steam": SteamSession.lock_match()

@@ -51,6 +51,7 @@ var lobby_roster: Label
 var lobby_start: Button
 var last_lan_address: String = ""
 var network_config: Dictionary = {}
+var graphics_quality: CanvasLayer
 var kill_announcer
 
 func _ready() -> void:
@@ -95,6 +96,9 @@ func _ready() -> void:
 	camera.limit_bottom = int(Constants.WORLD_H) + 2000
 	add_child(camera)
 	camera.make_current()
+
+	graphics_quality = preload("res://scripts/GraphicsQuality.gd").new()
+	add_child(graphics_quality)
 
 	# HUD overlay
 	hud = CanvasLayer.new()
@@ -351,13 +355,18 @@ func _build_progression_menu(root: Control, in_match: bool = false) -> void:
 	root.add_child(shade)
 	shade.hide()
 	var panel = VBoxContainer.new()
-	panel.anchor_left = 0.5; panel.anchor_right = 0.5
-	panel.offset_left = -490; panel.offset_right = 490
-	panel.offset_top = 90 if in_match else 100
-	panel.offset_bottom = 1000
+	var scroll = ScrollContainer.new()
+	scroll.name = "SettingsScroll"
+	scroll.anchor_left = 0.5; scroll.anchor_right = 0.5
+	scroll.offset_left = -490; scroll.offset_right = 490
+	scroll.offset_top = 90 if in_match else 100
+	scroll.offset_bottom = 1000
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	shade.add_child(scroll)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.add_theme_constant_override("separation", 12)
 	if in_match: panel.add_theme_constant_override("separation", 10)
-	shade.add_child(panel)
+	scroll.add_child(panel)
 	var heading = Label.new()
 	heading.text = "SETTINGS / PERMANENT STATS" if in_match else "PERMANENT UPGRADES"
 	heading.add_theme_font_size_override("font_size", 36)
@@ -409,6 +418,12 @@ func _build_progression_menu(root: Control, in_match: bool = false) -> void:
 		_cancel_pending_skill()
 		Progression.save_profile())
 	panel.add_child(cast_toggle)
+	GraphicsQuality.settings_row(panel,graphics_quality)
+	var bots = RiftMenus.bot_picker(panel)
+	bots.disabled = in_match or (LanSession.active and not LanSession.is_host())
+	if in_match:
+		bots.set_pressed_no_signal(GameState.allied_bots)
+		bots.text += " (LOCKED THIS MATCH)"
 	var music_row = HBoxContainer.new()
 	music_row.name = "MusicVolumeRow"
 	music_row.add_theme_constant_override("separation",20)
@@ -503,6 +518,7 @@ func _start_game(hero_key: String) -> void:
 # =============================================================================
 func _build_match(player_hero: String) -> void:
 	GameState.reset()
+	GameState.allied_bots = bool(network_config.get("allied_bots",Progression.allied_bots))
 	_cancel_pending_skill()
 	_reset_camera_shake()
 	hero_impact_times.clear()
@@ -553,6 +569,7 @@ func _build_match(player_hero: String) -> void:
 				if d == c: team_idx = count
 				count += 1
 		c.global_position.y = Constants.LANE_Y + (team_idx - 1) * 32
+		if c.team == BLUE and c.is_bot and not GameState.allied_bots: c.disable_roster_slot()
 
 	GameState.cam_target.x = GameState.player.global_position.x
 	GameState.cam_target.y = GameState.player.global_position.y
@@ -742,8 +759,10 @@ func _process(delta: float) -> void:
 	economy_timer += delta
 	if economy_timer >= 1.0:
 		economy_timer -= 1.0
-		for c in GameState.champions: c.gold += 2
+		for c in GameState.champions:
+			if c.roster_active: c.gold += 2
 	for c in GameState.champions:
+		if not c.roster_active: continue
 		if c.dead:
 			c.tick_cooldowns(delta)
 			if GameState.time >= c.respawn_at:
@@ -838,6 +857,9 @@ func _spawn_wave(team: int) -> void:
 			GameState.minions.append(m2)
 
 func _respawn_champion(c) -> void:
+	if not c.roster_active: return
+	c.assist_hits.clear()
+	c.assist_support.clear()
 	c.dead = false
 	c.hit_flash=0.;c.material.set_shader_parameter("hit_whiten",0.)
 	c.animator.start("idle",0)
@@ -1012,6 +1034,7 @@ func deal_damage(src, target, dmg: float, dmg_type: String, spell_id: String = "
 	if dmg_type != "mark" and "buffs" in target and target.buffs.has("death_mark") and target.buffs.death_mark.src == src:
 		target.buffs.death_mark.stored += dmg
 	HeroPassives.before_damage(src,target,dmg_type,dmg)
+	if dmg > 0: CombatParticipation.hit(src,target)
 	var damage_before_shield=dmg
 	# Shield absorb
 	if "shield" in target and target.shield > 0:
@@ -1112,12 +1135,12 @@ func _handle_death(killer, victim) -> void:
 				TankADCombat.champion_kill(killer)
 			kill_announcer.register(killer,victim)
 			_log_kill(killer, victim)
-			for c in GameState.champions:
-				if c.team != victim.team and c != killer and not c.dead \
-						and c.global_position.distance_to(victim.global_position) < 400:
-					c.gold += 100
-					c.grant_xp(40)
-					c.assists += 1
+			for c in CombatParticipation.assistants(killer,victim):
+				c.gold += CombatParticipation.ASSIST_GOLD
+				c.grant_xp(40)
+				c.assists += 1
+				floating_text(c.world_pos()+Vector2(0,-68),"+%dg ASSIST" % CombatParticipation.ASSIST_GOLD,Color("f4d481"),true)
+			victim.assist_hits.clear()
 			if victim == GameState.player:
 				hud.get_node("HudRoot").show_death_overlay()
 				camera_shake(0.3, 10.0)

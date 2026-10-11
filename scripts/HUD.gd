@@ -809,6 +809,7 @@ func build_for_player(c) -> void:
 		var row = _create_team_row(ch, ch.team == Constants.BLUE)
 		if ch.team == Constants.BLUE: blue_panel.add_child(row)
 		else: red_panel.add_child(row)
+		row.visible = ch.roster_active
 		team_rows[ch] = row
 
 func set_scoreboard_visible(enabled: bool) -> void:
@@ -913,6 +914,8 @@ func refresh(delta: float) -> void:
 	for ch in GameState.champions:
 		var row = team_rows.get(ch, null)
 		if row == null: continue
+		row.visible = ch.roster_active
+		if not ch.roster_active: continue
 		var vb = row.get_child(0).get_child(1)
 		vb.get_child(0).text = "%s  L%d%s" % [ch.char_name, ch.level, "  💀" if ch.dead else ""]
 		var hidden = not ch.dead and not BrushVision.visible_to(ch,player.team)

@@ -29,6 +29,8 @@ var level: int = 1
 var xp: float = 0.0
 var cs: int = 0
 var gold: int = 1000
+# Host-only carry: retain sub-gold income without changing integer wallet/item costs.
+var passive_gold_remainder: float = 0.0
 
 var skill_ranks: Array = [0, 0, 0, 0]
 var skill_cds:   Array = [0.0, 0.0, 0.0, 0.0]

@@ -18,6 +18,8 @@ func run() -> void:
  check(load("res://scripts/DeadeyeCue.gd")!=null,"export contains synchronized lock presentation")
  check(game.menu.find_child("AlliedBots",true,false)!=null,"export exposes allied-bot rule")
  check(game.graphics_quality.screen.material.shader!=null and game.graphics_quality.layer<game.hud.layer,"export contains world-only FXAA below HUD")
+ var economy=load("res://scripts/Constants.gd")
+ check(economy.PASSIVE_GOLD==.2 and economy.PASSIVE_XP==.2 and economy.HERO_KILL_GOLD==600 and economy.HERO_KILL_XP==320 and economy.MINION_GOLD_MULTIPLIER==2 and economy.MINION_SOAK_XP_MULTIPLIER==2.4,"export has exact requested passive and kill rates")
  check(load("res://scripts/CombatParticipation.gd").ASSIST_GOLD==75,"export has small assist gold reward")
  var updater=root.get_node("GameUpdates")
  check(FileAccess.file_exists("res://assets/updater/UpdateGame.ps1"),"exported updater helper ships")

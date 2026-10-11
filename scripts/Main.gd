@@ -861,7 +861,10 @@ func _tick_economy(delta: float) -> void:
 	economy_timer -= seconds
 	for c in GameState.champions:
 		if not c.roster_active: continue
-		c.gold += Constants.PASSIVE_GOLD * seconds
+		c.passive_gold_remainder += Constants.PASSIVE_GOLD * seconds
+		var payout = floori(c.passive_gold_remainder + 0.00000001)
+		c.passive_gold_remainder = maxf(0., c.passive_gold_remainder - payout)
+		c.gold += payout
 		c.grant_xp(Constants.PASSIVE_XP * seconds)
 
 func _respawn_champion(c) -> void:

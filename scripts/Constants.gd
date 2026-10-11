@@ -25,15 +25,15 @@ const WAVE_INTERVAL: float = 16.0
 const FIRST_WAVE_AT: float = 3.0
 
 # Match currency/XP: source rewards are scaled once, before enemy difficulty XP.
-const PASSIVE_GOLD: int = 2
-const PASSIVE_XP: float = 2.0
-const HERO_KILL_GOLD: int = 300
-const HERO_KILL_XP: float = 160.0
+const PASSIVE_GOLD: float = 0.2
+const PASSIVE_XP: float = 0.2
+const HERO_KILL_GOLD: int = 600
+const HERO_KILL_XP: float = 320.0
 const HERO_KILL_XP_PER_LEVEL: float = 0.0
 const ASSIST_XP: float = 40.0
 const ASSIST_XP_PER_LEVEL: float = 0.0
-const MINION_GOLD_MULTIPLIER: int = 1
-const MINION_SOAK_XP_MULTIPLIER: float = 1.2
+const MINION_GOLD_MULTIPLIER: int = 2
+const MINION_SOAK_XP_MULTIPLIER: float = 2.4
 const LAST_HIT_XP_MULTIPLIER: float = 1.25
 
 const TEAM_COLOR = {

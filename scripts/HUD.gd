@@ -946,7 +946,7 @@ func refresh(delta: float) -> void:
 		_draw_minimap()
 
 	if shop_open: shop_panel.refresh_shop()
-	xp_bar.tooltip_text = "XP %d / %d • +%.0f XP/sec while alive • soak within 650 range\nLast hits grant 25%% extra minion XP and normal last-hit gold\nBuild upgrades at levels 4 / 6 / 8 / 10 / 12 / 14 / 16 / 18\nLevel cap 100 · After earning all skill points: +3 AD / +5 AP / +45 HP / +25 mana per level" % [player.xp, Constants.xp_to_level(player.level), Constants.PASSIVE_XP]
+	xp_bar.tooltip_text = "XP %d / %d • +%.1f XP/sec while alive • soak within 650 range\nLast hits grant 25%% extra minion XP and normal last-hit gold\nBuild upgrades at levels 4 / 6 / 8 / 10 / 12 / 14 / 16 / 18\nLevel cap 100 · After earning all skill points: +3 AD / +5 AP / +45 HP / +25 mana per level" % [player.xp, Constants.xp_to_level(player.level), Constants.PASSIVE_XP]
 	if player.level>=Constants.MAX_LEVEL:xp_bar.tooltip_text="LEVEL 100 · MAX LEVEL\nVeteran stats stay for this match, including after death."
 	# Inventory slots
 	for i in range(6):
@@ -995,7 +995,7 @@ func _build_inventory_bar() -> void:
 		inv_slots.append({"panel":panel,"icon":icon})
 	shop_button = Button.new()
 	shop_button.name = "ShopGold"
-	shop_button.tooltip_text = "+%d gold/sec • Last-hit minions for gold\nHero kill: %dg • Assist: %dg\n[P] Open shop" % [Constants.PASSIVE_GOLD, Constants.HERO_KILL_GOLD, CombatParticipation.ASSIST_GOLD]
+	shop_button.tooltip_text = "+%.1f gold/sec • Last-hit minions for gold\nHero kill: %dg • Assist: %dg\n[P] Open shop" % [Constants.PASSIVE_GOLD, Constants.HERO_KILL_GOLD, CombatParticipation.ASSIST_GOLD]
 	shop_button.position = Vector2(734,122)
 	shop_button.size = Vector2(158,24)
 	shop_button.focus_mode = Control.FOCUS_NONE

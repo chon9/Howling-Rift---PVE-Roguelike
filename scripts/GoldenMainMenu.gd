@@ -65,7 +65,7 @@ func _ready() -> void:
  text("HOWLING",Vector2(114,126),74,LIGHT,660,true)
  text("RIFT",Vector2(112,207),108,Color("e1bc72"),660,true)
  line(Vector2(122,339),Vector2(66,3),GOLD)
- text("A R A M   /   S O L O   &   C O - O P",Vector2(122,359),18,GOLD)
+ text("A R A M   /   P V E   &   P V P",Vector2(122,359),18,GOLD)
  text("One lane. Endless builds.",Vector2(122,394),26,LIGHT)
  text("Fight, earn credits, and grow stronger.",Vector2(122,431),19,MUTED)
  var difficulty=Panel.new();difficulty.name="DifficultyCard"
@@ -145,6 +145,17 @@ func _ready() -> void:
  bots.position=Vector2(1455,330);bots.size=Vector2(340,48)
  bots.add_theme_color_override("font_color",GOLD)
  text("Off: humans only vs 3 enemy heroes",Vector2(1455,380),16,MUTED,340)
+ var pvp=action("PLAY PVP ARAM",Vector2(1440,450),Vector2(370,64),func():RiftMenus.pvp(game),true)
+ pvp.name="PlayPvp";pvp.add_theme_font_size_override("font_size",24)
+ var pvp_note=Panel.new();pvp_note.position=Vector2(1440,520);pvp_note.size=Vector2(370,32)
+ pvp_note.mouse_filter=Control.MOUSE_FILTER_IGNORE;pvp_note.add_theme_stylebox_override("panel",box(Color(.025,.04,.065,.94),Color(0,0,0,0),0));design.add_child(pvp_note)
+ text("1v1 / 2v2 / 3v3 • Equal starting stats",Vector2(1450,524),17,GOLD,350)
+ if LanSession.can_reconnect():
+  var reconnect=action("RECONNECT PVP",Vector2(1440,566),Vector2(370,56),func():
+   var error=LanSession.reconnect_game()
+   if error==OK:game._show_lobby()
+   else:game.menu_status.text=error_string(error))
+  reconnect.name="ReconnectPvp"
  Progression.refresh_daily()
  var daily_card=Panel.new();daily_card.position=Vector2(1440,245);daily_card.size=Vector2(370,62)
  daily_card.add_theme_stylebox_override("panel",box(Color(.025,.04,.065,.90),Color("6e5d3b")))

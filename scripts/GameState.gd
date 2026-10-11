@@ -8,6 +8,10 @@ var paused: bool = false
 var difficulty: int = 1
 var reward_difficulty: int = 1
 var allied_bots: bool = true
+var match_mode: String = "pve"
+var team_size: int = 3
+var fill_bots: bool = true
+func is_pvp() -> bool:return match_mode=="pvp"
 var time: float = 0.0
 
 var player = null
@@ -30,6 +34,7 @@ var cam_locked: bool = true
 var attack_move_pending: bool = false
 
 func reset() -> void:
+	match_mode="pve";team_size=3;fill_bots=true
 	allied_bots = true
 	paused = false
 	running = false

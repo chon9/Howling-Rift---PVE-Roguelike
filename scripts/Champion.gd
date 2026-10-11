@@ -184,8 +184,8 @@ func setup(_team: int, _hero_key: String, _is_bot: bool, _name: String) -> void:
 	material = sprite_material
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	is_bot = _is_bot
-	difficulty_stats = Progression.scaling(GameState.difficulty if team == Constants.RED else 1)
-	if not is_bot: permanent_bonus = Progression.bonuses()
+	difficulty_stats = Progression.scaling(GameState.difficulty if team == Constants.RED and not GameState.is_pvp() else 1)
+	if not is_bot and not GameState.is_pvp(): permanent_bonus = Progression.bonuses()
 	char_name = _name
 	auto_type = hero["auto_type"]
 	move_speed = hero["move_speed"] * 1.1
@@ -545,7 +545,7 @@ func _bot_buy_next() -> bool:
 
 func grant_comeback_gold() -> int:
 	last_comeback_gold=0
-	if not is_bot or team!=Constants.RED:return 0
+	if GameState.is_pvp() or not is_bot or team!=Constants.RED:return 0
 	last_comeback_gold=Constants.enemy_death_gold(deaths)
 	gold+=last_comeback_gold;comeback_gold_awarded+=last_comeback_gold
 	if last_comeback_gold>0:bot_buy_t=0.
@@ -591,7 +591,7 @@ func _bot_spend_points() -> void:
 
 func grant_xp(amount: float) -> void:
 	if dead or level>=Constants.MAX_LEVEL or not is_finite(amount) or amount<=0:return
-	var multiplier=difficulty_stats.get("experience",1.) if is_bot and team==Constants.RED else 1.
+	var multiplier=difficulty_stats.get("experience",1.) if is_bot and team==Constants.RED and not GameState.is_pvp() else 1.
 	xp += amount*multiplier
 	while level < Constants.MAX_LEVEL and xp >= Constants.xp_to_level(level):
 		xp -= Constants.xp_to_level(level)

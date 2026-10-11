@@ -3,6 +3,9 @@ extends Node
 var layer: CanvasLayer
 var panel: Control
 var watched: Control
+static func attach_ref(reference: WeakRef) -> void:
+ var control=reference.get_ref()
+ if control is Control:attach(control)
 static func attach(control: Control) -> void:
  if not is_instance_valid(control) or not control.is_inside_tree() or control.is_queued_for_deletion():return
  var root=control.get_tree().root

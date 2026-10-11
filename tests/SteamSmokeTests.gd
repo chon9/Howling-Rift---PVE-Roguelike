@@ -57,6 +57,23 @@ func _ready() -> void:
   check(api.getLobbyData(SteamSession.lobby_id,"started")=="1","match closes Steam lobby to late joins")
  LanSession.leave()
  check(not LanSession.active and SteamSession.lobby_id==0,"Steam leave detaches peer and clears lobby")
+ game._return_to_main_menu()
+ check(SteamSession.host_game("pvp",3,true)==OK,"request real Steam PvP room")
+ finish=Time.get_ticks_msec()+27000
+ while SteamSession.operation=="host" and Time.get_ticks_msec()<finish:await get_tree().process_frame
+ check(LanSession.is_host() and LanSession.is_pvp(),"native Steam attaches PvP rules")
+ if LanSession.is_host():
+  id=SteamSession.lobby_id
+  var metadata=SteamSession.lobby_metadata(id)
+  check(api.getLobbyMemberLimit(id)==6 and metadata.mode=="pvp" and metadata.team_size=="3","real Steam lobby advertises six-player PvP")
+  check(LanSession.set_pvp_rules(1,false),"host changes to human-only duel")
+  check(api.getLobbyMemberLimit(id)==2 and api.getLobbyData(id,"team_size")=="1" and api.getLobbyData(id,"fill_bots")=="0","Steam metadata and member limit update together")
+  LanSession.ready_player("ashe",["heal","ghost"],profile_bonuses())
+  check(not LanSession.can_start(),"PvP requires an opposing human")
+  check(game.menu.find_child("PvpTeam",true,false)!=null,"real Steam displays PvP team controls")
+ LanSession.leave()
  game.queue_free();await get_tree().process_frame
  print("STEAM LIVE SMOKE: %d checks, %d failures" % [checks,failures])
  get_tree().quit(1 if failures else 0)
+
+func profile_bonuses() -> Dictionary:return Progression.bonuses()

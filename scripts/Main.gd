@@ -49,6 +49,12 @@ var menu_page: String = "main"
 var menu_status: Label
 var lobby_roster: Label
 var lobby_start: Button
+var lobby_team: OptionButton
+var lobby_ready: Button
+var lobby_hint: Label
+var lobby_size: OptionButton
+var lobby_bots: CheckButton
+var lobby_team_rosters: Array=[]
 var last_lan_address: String = ""
 var network_config: Dictionary = {}
 var graphics_quality: CanvasLayer
@@ -315,6 +321,7 @@ func _select_hero(hero_key: String) -> void:
 		hero_cards[key].modulate = Color.WHITE if key == hero_key else Color(0.85,0.85,0.85)
 
 func award_match_credits(won: bool, kills: int) -> int:
+	if GameState.is_pvp():return 0
 	return Progression.complete_match(won, GameState.time, kills, GameState.reward_difficulty, GameState.player.cs if is_instance_valid(GameState.player) else 0)
 
 func _build_progression_menu(root: Control, in_match: bool = false) -> void:
@@ -369,7 +376,7 @@ func _build_progression_menu(root: Control, in_match: bool = false) -> void:
 	if in_match: panel.add_theme_constant_override("separation", 10)
 	scroll.add_child(panel)
 	var heading = Label.new()
-	heading.text = "SETTINGS / PERMANENT STATS" if in_match else "PERMANENT UPGRADES"
+	heading.text = "SETTINGS" if in_match and GameState.is_pvp() else "SETTINGS / PERMANENT STATS" if in_match else "PERMANENT UPGRADES"
 	heading.add_theme_font_size_override("font_size", 36)
 	panel.add_child(heading)
 	var wallet = Label.new()
@@ -381,17 +388,17 @@ func _build_progression_menu(root: Control, in_match: bool = false) -> void:
 		label.reparent(difficulty_row)
 		stage.reparent(difficulty_row)
 		stage.hide()
-		label.text = "DIFFICULTY N%d (LOCKED)" % GameState.difficulty
+		label.text = "PVP — EQUAL STARTING STATS" if GameState.is_pvp() else "DIFFICULTY N%d (LOCKED)" % GameState.difficulty
 		bar.hide()
 		info.reparent(panel)
 		info.custom_minimum_size.y = 28
 	var note = Label.new()
-	note.text = "Difficulty and permanent stats are locked for this run.\nReturn to the main menu to buy upgrades for your next game." if in_match else "Farm completed runs for permanent credits. Higher N pays more.\nSmall stat gains last forever; higher ranks cost much more. Buy before starting."
+	note.text = "PvP uses equal starting stats. Permanent upgrades and N difficulty apply to PvE only." if in_match and GameState.is_pvp() else "Difficulty and permanent stats are locked for this run.\nReturn to the main menu to buy upgrades for your next game." if in_match else "Farm completed runs for permanent credits. Higher N pays more.\nSmall stat gains last forever; higher ranks cost much more. Buy before starting."
 	note.add_theme_font_size_override("font_size", 18)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	panel.add_child(note)
 	var buttons: Dictionary = {}
-	for key in Progression.UPGRADES:
+	for key in ([] if in_match and GameState.is_pvp() else Progression.UPGRADES.keys()):
 		var button = Button.new()
 		button.name = "Permanent_"+key
 		button.custom_minimum_size.y = 52
@@ -425,7 +432,7 @@ func _build_progression_menu(root: Control, in_match: bool = false) -> void:
 	bots.disabled = in_match or (LanSession.active and not LanSession.is_host())
 	if in_match:
 		bots.set_pressed_no_signal(GameState.allied_bots)
-		bots.text += " (LOCKED THIS MATCH)"
+		bots.text = "AI EMPTY SLOTS (LOCKED THIS MATCH)" if GameState.is_pvp() else bots.text + " (LOCKED THIS MATCH)"
 	var music_row = HBoxContainer.new()
 	music_row.name = "MusicVolumeRow"
 	music_row.add_theme_constant_override("separation",20)
@@ -452,7 +459,7 @@ func _build_progression_menu(root: Control, in_match: bool = false) -> void:
 	panel.add_child(close)
 	close.pressed.connect(func():
 		if in_match: toggle_in_game_menu()
-		elif menu_page in ["upgrades","equipment"]: _show_main_menu()
+		elif menu_page in ["upgrades","equipment","pvp"]: _show_main_menu()
 		else: shade.hide()
 	)
 	var refresh = func():
@@ -462,7 +469,10 @@ func _build_progression_menu(root: Control, in_match: bool = false) -> void:
 		var scale = Progression.scaling(selected_stage)
 		info.text = "N%d • Enemy HP x%.2f / Damage x%.2f • %s" % [selected_stage, scale.health, scale.damage, Progression.reward_preview(selected_stage)]
 		stage.tooltip_text = Progression.difficulty_preview(selected_stage)
-		if in_match: info.text += "\nLocked at match start • Time and kills add bonus credits"
+		if in_match and GameState.is_pvp():
+			info.text="PVP • Same starting stats for both teams • No difficulty cheats"
+			wallet.hide();balance.hide()
+		elif in_match: info.text += "\nLocked at match start • Time and kills add bonus credits"
 		for key in buttons:
 			var upgrade = Progression.UPGRADES[key]
 			var lv = int(Progression.levels.get(key, 0))
@@ -506,9 +516,10 @@ class _CardPortraitDraw extends Control:
 
 func _start_game(hero_key: String) -> void:
 	if GameState.started: return
-	GameState.difficulty = int(network_config.get("stage",Progression.difficulty))
+	GameState.match_mode=str(network_config.get("mode","pve"))
+	GameState.difficulty = 1 if GameState.is_pvp() else int(network_config.get("stage",Progression.difficulty))
 	GameState.reward_difficulty = GameState.difficulty
-	Progression.begin_match()
+	if not GameState.is_pvp():Progression.begin_match()
 	menu.queue_free()
 	hud.get_node("HudRoot").show()
 	hud.get_node("HudRoot").show_game_hud()
@@ -520,6 +531,10 @@ func _start_game(hero_key: String) -> void:
 # =============================================================================
 func _build_match(player_hero: String) -> void:
 	GameState.reset()
+	GameState.match_mode=str(network_config.get("mode","pve"))
+	GameState.team_size=int(network_config.get("team_size",3))
+	GameState.fill_bots=bool(network_config.get("fill_bots",true))
+	if GameState.is_pvp():GameState.difficulty=1
 	GameState.allied_bots = bool(network_config.get("allied_bots",Progression.allied_bots))
 	_cancel_pending_skill()
 	_reset_camera_shake()
@@ -537,27 +552,23 @@ func _build_match(player_hero: String) -> void:
 	if not network_config.is_empty(): red_pick = network_config.red.duplicate()
 	ActionSpriteArt.begin_match(blue_pick+red_pick)
 	KitEffectArt.begin_match(blue_pick+red_pick)
-	var b_names = ["You", "Allie", "Buddy"]
-	var r_names = ["Rival", "Villain", "Nemesis"]
-	for i in range(3):
-		var config = network_config.get("players",[])[i] if i < network_config.get("players",[]).size() else {}
-		var owner = int(config.get("peer",1 if i == 0 and network_config.is_empty() else 0))
-		var is_player = owner == multiplayer.get_unique_id()
-		var c = ChampionS.new()
-		world_root.add_child(c)
-		c.setup(BLUE, blue_pick[i], owner == 0, "You" if is_player else config.get("name",b_names[i]))
-		c.owner_peer = owner
-		if not config.is_empty():
-			c.permanent_bonus = config.bonuses.duplicate()
-			c.summoner_spells = config.spells.duplicate()
-			c._apply_items()
-		GameState.champions.append(c)
-		if is_player: GameState.player = c
-	for i in range(3):
-		var c = ChampionS.new()
-		world_root.add_child(c)
-		c.setup(RED, red_pick[i], true, r_names[i])
-		GameState.champions.append(c)
+	var configs: Array=network_config.get("players",[])
+	for team in [BLUE,RED]:
+		for i in range(3):
+			var config={}
+			for index in range(configs.size()):
+				if int(configs[index].get("slot",index))==team*3+i:config=configs[index];break
+			var owner=int(config.get("peer",1 if team==BLUE and i==0 and network_config.is_empty() else 0))
+			var is_player=owner==multiplayer.get_unique_id()
+			var c=ChampionS.new();world_root.add_child(c)
+			var hero=(blue_pick if team==BLUE else red_pick)[i]
+			c.setup(team,hero,owner==0,"You" if is_player else config.get("name",["Ally","Buddy","Vanguard"][i] if team==BLUE else ["Rival","Villain","Nemesis"][i]))
+			c.owner_peer=owner
+			if not config.is_empty():
+				c.permanent_bonus={} if GameState.is_pvp() else config.get("bonuses",{}).duplicate()
+				c.summoner_spells=config.spells.duplicate();c._apply_items()
+			GameState.champions.append(c)
+			if is_player:GameState.player=c
 	# Spread spawns
 	for c in GameState.champions:
 		c.level = 3
@@ -574,7 +585,9 @@ func _build_match(player_hero: String) -> void:
 				if d == c: team_idx = count
 				count += 1
 		c.global_position.y = Constants.LANE_Y + (team_idx - 1) * 32
-		if c.team == BLUE and c.is_bot and not GameState.allied_bots: c.disable_roster_slot()
+		if GameState.is_pvp():
+			if team_idx>=GameState.team_size or (c.is_bot and not GameState.fill_bots and not network_config.get("resuming",false)):c.disable_roster_slot()
+		elif c.team == BLUE and c.is_bot and not GameState.allied_bots: c.disable_roster_slot()
 
 	GameState.cam_target.x = GameState.player.global_position.x
 	GameState.cam_target.y = GameState.player.global_position.y
@@ -1335,8 +1348,11 @@ func _end_game(winner_team: int) -> void:
 	GameState.running = false
 	award_match_credits(winner_team == GameState.player.team, GameState.player.kills)
 	hud.get_node("HudRoot").show_end_screen(winner_team == GameState.player.team)
-	hud.get_node("HudRoot").end_stats.text += "\nN%d  •  +%d permanent credits  •  Balance: %d\n%s" % [GameState.difficulty, Progression.last_reward, Progression.credits, Progression.save_error]
-	hud.get_node("HudRoot").end_stats.text += "\n"+Progression.drop_summary()
+	if GameState.is_pvp():
+		hud.get_node("HudRoot").end_stats.text+="\n%dv%d PVP • %s TEAM\nEqual starting stats • PvE progression unaffected" % [GameState.team_size,GameState.team_size,"BLUE" if GameState.player.team==BLUE else "RED"]
+	else:
+		hud.get_node("HudRoot").end_stats.text += "\nN%d  •  +%d permanent credits  •  Balance: %d\n%s" % [GameState.difficulty, Progression.last_reward, Progression.credits, Progression.save_error]
+		hud.get_node("HudRoot").end_stats.text += "\n"+Progression.drop_summary()
 	camera_shake(1.0, 12.0)
 	if winner_team == GameState.player.team:
 		camera_flash(1.2, Color(1.0, 0.86, 0.52))
@@ -1520,7 +1536,7 @@ func _input(event: InputEvent) -> void:
 		if _close_confirmation(): get_viewport().set_input_as_handled(); return
 		if not GameState.started:
 			if menu_page == "heroes": _back_from_heroes()
-			elif menu_page in ["upgrades","equipment"]: _show_main_menu()
+			elif menu_page in ["upgrades","equipment","pvp"]: _show_main_menu()
 			elif menu_page in ["lobby","steam"]: LanSession.leave(); _show_main_menu()
 			get_viewport().set_input_as_handled()
 			return
@@ -1639,12 +1655,25 @@ func _back_from_heroes() -> void:
 func _refresh_lobby() -> void:
 	if menu_page != "lobby" or not is_instance_valid(menu_status): return
 	menu_status.text = LanSession.status
-	var entries: PackedStringArray = []
-	for peer in LanSession.players:
-		var config = LanSession.players[peer]
-		entries.append("%s • %s • %s" % [config.get("name","Player"),ChampionData.CHAMPIONS[config.hero].name,"READY" if config.get("ready",false) else "Choosing hero"])
-	lobby_roster.text = "\n".join(entries)
-	lobby_start.disabled = not LanSession.can_start()
+	if LanSession.is_pvp():
+		var local=LanSession.local_config()
+		if is_instance_valid(lobby_team):lobby_team.select(int(local.get("team",0)));lobby_team.disabled=local.is_empty()
+		if is_instance_valid(lobby_ready):lobby_ready.text="UNREADY" if local.get("ready",false) else "READY";lobby_ready.disabled=local.is_empty()
+		if is_instance_valid(lobby_size):lobby_size.select(int(LanSession.rules.team_size)-1)
+		if is_instance_valid(lobby_bots):lobby_bots.set_pressed_no_signal(bool(LanSession.rules.fill_bots))
+		for team in range(2):
+			var lines: PackedStringArray=[]
+			for config in LanSession.players.values():
+				if config.get("team",0)==team:lines.append("%s • %s • %s" % [config.name,ChampionData.CHAMPIONS[config.hero].name,"READY" if config.ready else "Choosing"])
+			for slot in range(lines.size(),int(LanSession.rules.team_size)):lines.append("Empty • AI" if LanSession.rules.fill_bots else "Empty • waiting for player")
+			if team<lobby_team_rosters.size() and is_instance_valid(lobby_team_rosters[team]):lobby_team_rosters[team].text="\n".join(lines)
+		if is_instance_valid(lobby_hint):lobby_hint.text=LanSession.start_error() if not LanSession.start_error().is_empty() else "Both teams ready • host can start."
+	else:
+		var entries: PackedStringArray = []
+		for config in LanSession.players.values():entries.append("%s • %s • %s" % [config.get("name","Player"),ChampionData.CHAMPIONS[config.hero].name,"READY" if config.get("ready",false) else "Choosing hero"])
+		lobby_roster.text="\n".join(entries)
+	lobby_start.disabled=not LanSession.can_start()
+
 func _show_equipment() -> void:
 	if GameState.started:return
 	var root=RiftMenus.backdrop(self,"equipment")
@@ -1670,7 +1699,7 @@ func _show_pause_upgrades() -> void:
 	in_game_menu.get_node("MatchPanel").add_child(layer)
 	_build_progression_menu(layer,true)
 func _request_return() -> void:
-	_request_confirmation("ReturnConfirmation",("Return to main menu?\nThis unfinished match will not award credits." if GameState.running else "Return to main menu?") + ("\nLeaving as host ends the co-op session." if LanSession.is_host() else ""),_return_to_main_menu)
+	_request_confirmation("ReturnConfirmation",("Return to main menu?\nThis unfinished match will not award credits." if GameState.running and not GameState.is_pvp() else "Return to main menu?") + ("\nLeaving as host ends the multiplayer session." if LanSession.is_host() else ""),_return_to_main_menu)
 func _request_quit() -> void:
 	_request_confirmation("QuitConfirmation","Quit Howling Rift?" + ("\nThis unfinished match will not award credits." if GameState.running else ""),func(): LanSession.leave(); get_tree().quit())
 func _request_confirmation(id: String, text: String, action: Callable) -> void:

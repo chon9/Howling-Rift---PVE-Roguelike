@@ -25,6 +25,23 @@ var last_state_time: float = -1.0
 var match_started: bool = false
 var last_commands: Dictionary = {}
 var pending_player: Dictionary = {}
+var rules: Dictionary={"mode":"pve","team_size":3,"fill_bots":true}
+var match_config: Dictionary={}
+var join_address: String=""
+var resume_token: String=""
+var reconnect_info: Dictionary={}
+var peer_tokens: Dictionary={}
+var disconnected: Dictionary={}
+var resume_requested: bool=false
+const RECONNECT_SECONDS=60.
+func build_version() -> String:return str(ProjectSettings.get_setting("application/config/version",""))
+func is_pvp() -> bool:return rules.mode==MatchRules.PVP
+func max_players() -> int:return MatchRules.capacity(rules)
+func local_config() -> Dictionary:return players.get(multiplayer.get_unique_id(),{})
+func broadcast_lobby() -> void:
+ _lobby.rpc(players,rules)
+ refresh_lobby()
+
 func _ready() -> void:
  var args = OS.get_cmdline_user_args()
  var override_index = args.find("--test-lan-port")
@@ -37,13 +54,14 @@ func _ready() -> void:
 func is_host() -> bool: return active and multiplayer.is_server()
 func is_client() -> bool: return active and not multiplayer.is_server()
 func is_local(c) -> bool: return is_client() and c == GameState.player
-func leave() -> void:
+func leave(forget_reconnect: bool=true) -> void:
  active = false
  var previous_peer = multiplayer.multiplayer_peer
  var was_steam = transport == "steam"
  # Replacing the transport releases it after SceneMultiplayer detaches.
  # Explicit ENet close can resend queued packets to already disconnected peers.
  multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+ multiplayer.server_relay=true
  # Steam listen sockets must close even when another object retains the peer.
  if was_steam: previous_peer.close()
  SteamSession.leave()
@@ -55,31 +73,41 @@ func leave() -> void:
  state_timer = 0; last_state_time = -1
  pending_player.clear()
  last_commands.clear()
-func attach_steam(peer: MultiplayerPeer, host: bool) -> void:
+ rules=MatchRules.settings();match_config.clear();peer_tokens.clear();disconnected.clear();resume_requested=false;resume_token=""
+ if forget_reconnect:reconnect_info.clear()
+func attach_steam(peer: MultiplayerPeer, host: bool,settings: Dictionary={}) -> void:
+ rules=MatchRules.settings(str(settings.get("mode","pve")),int(settings.get("team_size",3)),bool(settings.get("fill_bots",true)))
  transport = "steam"
+ multiplayer.server_relay=not is_pvp()
  multiplayer.multiplayer_peer = peer
  active = true
  if host:
-  players[1] = {"peer":1,"name":str(SteamSession.api.getPersonaName()).left(40),"hero":"ashe","spells":["flash","ignite"],"bonuses":Progression.bonuses(),"ready":false}
+  players[1] = {"peer":1,"name":str(SteamSession.api.getPersonaName()).left(40),"hero":"ashe","spells":["flash","ignite"],"bonuses":{} if is_pvp() else Progression.bonuses(),"ready":false,"team":0}
 func _peer_connected(peer: int) -> void:
- if is_host() and transport == "steam" and (players.size() >= 3 or not SteamSession.peer_allowed(peer)):
-  multiplayer.multiplayer_peer.disconnect_peer(peer)
-func host_game() -> Error:
+ if not is_host():return
+ if transport=="steam" and (not SteamSession.peer_allowed(peer) or (not match_started and players.size()>=max_players())):
+  multiplayer.multiplayer_peer.disconnect_peer(peer);return
+ var timer=get_tree().create_timer(5.)
+ timer.timeout.connect(func():
+  if is_host() and multiplayer.get_peers().has(peer) and not players.has(peer):multiplayer.multiplayer_peer.disconnect_peer(peer))
+func host_game(mode: String="pve",size: int=3,bots: bool=true) -> Error:
  leave()
- var peer = ENetMultiplayerPeer.new()
- var error = peer.create_server(network_port,2,3)
- if error != OK: return error
- multiplayer.multiplayer_peer = peer
- active = true
- players[1] = {"peer":1,"name":"Host","hero":"ashe","spells":["flash","ignite"],"bonuses":Progression.bonuses(),"ready":false}
- var addresses: PackedStringArray = []
+ rules=MatchRules.settings(mode,size,bots)
+ var peer=ENetMultiplayerPeer.new()
+ var error=peer.create_server(network_port,5 if is_pvp() else 2,3)
+ if error!=OK:return error
+ multiplayer.server_relay=not is_pvp()
+ multiplayer.multiplayer_peer=peer;active=true
+ players[1]={"peer":1,"name":"Host","hero":"ashe","spells":["flash","ignite"],"bonuses":{} if is_pvp() else Progression.bonuses(),"ready":false,"team":0}
+ var addresses: PackedStringArray=[]
  for address in IP.get_local_addresses():
-  if address.begins_with("192.168.") or address.begins_with("10.") or address.begins_with("172."): addresses.append(address)
- status = "HOST • UDP %d\nLAN IP: %s\nChoose a hero, then wait for your friends." % [network_port,", ".join(addresses) if not addresses.is_empty() else "127.0.0.1"]
+  if address.begins_with("192.168.") or address.begins_with("10.") or address.begins_with("172."):addresses.append(address)
+ status="HOST • UDP %d\nLAN IP: %s\nChoose a team and hero, then press Ready." % [network_port,", ".join(addresses) if not addresses.is_empty() else "127.0.0.1"]
  return OK
 func join_game(address: String) -> Error:
  if address.is_empty() or not address.is_valid_ip_address(): return ERR_INVALID_PARAMETER
  leave()
+ join_address=address
  var peer = ENetMultiplayerPeer.new()
  var error = peer.create_client(address,network_port,3)
  if error != OK: return error
@@ -91,33 +119,50 @@ func _connected() -> void:
  if not active: return
  if transport == "steam": SteamSession.connected()
  status = "Connected • choose a hero and press Ready."
- if pending_player.is_empty(): _submit_player.rpc_id(1,"ashe",["flash","ignite"],Progression.bonuses(),false)
- else: _submit_player.rpc_id(1,pending_player.hero,pending_player.spells,pending_player.bonuses,pending_player.ready)
+ if resume_requested:
+  _resume_player.rpc_id(1,resume_token,build_version());return
+ if pending_player.is_empty():_submit_player.rpc_id(1,"ashe",["flash","ignite"],Progression.bonuses(),false,build_version())
+ else:_submit_player.rpc_id(1,pending_player.hero,pending_player.spells,pending_player.bonuses,pending_player.ready,build_version())
  refresh_lobby()
 func _failed() -> void:
  if not active: return
  var steam = transport == "steam"
+ var saved=reconnect_info.duplicate(true) if resume_requested else {}
  leave()
+ reconnect_info=saved
  status = "Steam connection failed. Check Steam is online and ask the host to create a new lobby." if steam else "Connection failed. Check the host's IP and that both PCs are on the same LAN."
  if is_instance_valid(main): main._show_main_menu()
 func _server_left() -> void:
  if not active: return
+ var reconnect=reconnect_info.duplicate(true) if resume_requested else {}
+ if is_pvp() and match_started and GameState.running and not resume_token.is_empty():
+  reconnect={"transport":transport,"address":join_address,"lobby":SteamSession.lobby_id,"token":resume_token,"expires":Time.get_ticks_msec()/1000.+RECONNECT_SECONDS}
  leave()
- status = "Host disconnected. The co-op session ended."
+ status = "Connection lost. Reconnect to PvP within 60 seconds." if not reconnect.is_empty() else "Host disconnected. The multiplayer session ended."
  if is_instance_valid(main): main._return_to_main_menu()
+ reconnect_info=reconnect
+ if is_instance_valid(main) and not reconnect.is_empty():main._show_main_menu()
 func _peer_left(peer: int) -> void:
- if not is_host(): return
+ if not is_host():return
+ var config=players.get(peer,{}).duplicate(true)
  players.erase(peer)
  if GameState.started:
   for c in GameState.champions:
-   if c.owner_peer == peer:
-    c.owner_peer = 0
-    c.is_bot = true
-    c.stop_actions()
-    if not GameState.allied_bots: c.disable_roster_slot()
-    c.char_name += " (AI)" if GameState.allied_bots else " (Disconnected)"
-    c.name_label.text = c.char_name
- else: _lobby.rpc(players)
+   if c.owner_peer!=peer:continue
+   c.owner_peer=0;c.stop_actions()
+   if is_pvp():
+    var token=str(peer_tokens.get(peer,""))
+    if GameState.running and not token.is_empty():
+     disconnected[token]={"config":config,"slot":GameState.champions.find(c),"expires":Time.get_ticks_msec()/1000.+RECONNECT_SECONDS,"draft":draft_states.get(peer,{}).duplicate(true),"steam_id":int(config.get("steam_id",0))}
+    c.is_bot=bool(rules.fill_bots)
+    c.char_name=config.get("name","Player")+(" (AI)" if c.is_bot else " (Disconnected)")
+   else:
+    c.is_bot=true
+    if not GameState.allied_bots:c.disable_roster_slot()
+    c.char_name+=" (AI)" if GameState.allied_bots else " (Disconnected)"
+   c.name_label.text=c.char_name
+ draft_states.erase(peer);peer_tokens.erase(peer)
+ if not GameState.started:broadcast_lobby()
  refresh_lobby()
 func sanitize_bonuses(bonuses: Dictionary) -> Dictionary:
  var result = {}
@@ -126,73 +171,108 @@ func sanitize_bonuses(bonuses: Dictionary) -> Dictionary:
   if is_finite(value): result[field] = clampf(value,0,0.615 if field == "bonus_ms" else 5 if field == "bonus_as" else 0.4 if field == "bonus_cdr" else 1.0 if field in ["bonus_crit","bonus_lifesteal"] else 10000)
  return result
 @rpc("any_peer","call_remote","reliable",1)
-func _submit_player(hero: String, spells: Array, bonuses: Dictionary, ready: bool) -> void:
- if not is_host() or match_started or not ChampionData.CHAMPIONS.has(hero): return
+func _submit_player(hero: String, spells: Array, bonuses: Dictionary, ready: bool,version: String="") -> void:
+ if not is_host():return
+ var incoming=multiplayer.get_remote_sender_id()
+ if match_started or version!=build_version():
+  multiplayer.multiplayer_peer.disconnect_peer(incoming);return
+ if not ChampionData.CHAMPIONS.has(hero):return
  var peer = multiplayer.get_remote_sender_id()
  if peer <= 1 or not multiplayer.get_peers().has(peer): return
  if transport == "steam" and not SteamSession.peer_allowed(peer): return
- if not players.has(peer) and players.size() >= 3: multiplayer.multiplayer_peer.disconnect_peer(peer); return
+ if not players.has(peer) and players.size() >= max_players(): multiplayer.multiplayer_peer.disconnect_peer(peer); return
  if not valid_spells(spells): return
- players[peer] = {"peer":peer,"name":"Player %d" % (players.size()+1 if not players.has(peer) else players.keys().find(peer)+1),"hero":hero,"spells":spells.duplicate(),"bonuses":sanitize_bonuses(bonuses),"ready":ready}
- if transport == "steam": players[peer].name = SteamSession.peer_name(peer)
- _lobby.rpc(players)
- refresh_lobby()
+ var team=int(players.get(peer,{}).get("team",MatchRules.open_team(players,rules)))
+ if team<0:multiplayer.multiplayer_peer.disconnect_peer(peer);return
+ players[peer]={"peer":peer,"name":players.get(peer,{}).get("name","Player %d" % (players.size()+1)),"hero":hero,"spells":spells.duplicate(),"bonuses":{} if is_pvp() else sanitize_bonuses(bonuses),"ready":ready,"team":team}
+ if transport=="steam":
+  players[peer].name=SteamSession.peer_name(peer)
+  players[peer].steam_id=multiplayer.multiplayer_peer.get_steam_id_for_peer_id(peer)
+ if not peer_tokens.has(peer):peer_tokens[peer]=Crypto.new().generate_random_bytes(24).hex_encode()
+ _welcome.rpc_id(peer,peer_tokens[peer])
+ broadcast_lobby()
+@rpc("authority","call_remote","reliable",1)
+func _welcome(token: String) -> void:
+ resume_token=token
+
 func valid_spells(spells: Array) -> bool:
  return spells.size() == 2 and spells[0] != spells[1] and SummonerData.SPELLS.has(spells[0]) and SummonerData.SPELLS.has(spells[1])
 func ready_player(hero: String, spells: Array, bonuses: Dictionary, ready: bool = true) -> void:
- if not active: return
+ if not active or match_started:return
  pending_player = {"hero":hero,"spells":spells.duplicate(),"bonuses":bonuses.duplicate(),"ready":ready}
  if not ChampionData.CHAMPIONS.has(hero) or not valid_spells(spells): return
  if is_host():
   players[1].hero = hero
   players[1].spells = spells.duplicate()
-  players[1].bonuses = bonuses.duplicate()
+  players[1].bonuses = {} if is_pvp() else bonuses.duplicate()
   players[1].ready = ready
-  _lobby.rpc(players)
+  broadcast_lobby()
  elif multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
-  _submit_player.rpc_id(1,hero,spells,bonuses,ready)
+  _submit_player.rpc_id(1,hero,spells,bonuses,ready,build_version())
+func start_error() -> String:
+ if match_started:return "This match has already started."
+ return MatchRules.start_error(players,rules)
 func can_start() -> bool:
- if match_started: return false
- if not is_host() or players.is_empty(): return false
- for config in players.values():
-  if not config.ready: return false
- return true
+ return is_host() and start_error().is_empty()
+func change_team(team: int) -> void:
+ if not active or match_started or not is_pvp():return
+ if is_host():_assign_team(1,team)
+ else:_request_team.rpc_id(1,team)
+@rpc("any_peer","call_remote","reliable",1)
+func _request_team(team: int) -> void:
+ if is_host() and not match_started:_assign_team(multiplayer.get_remote_sender_id(),team)
+func _assign_team(peer: int,team: int) -> bool:
+ if match_started or not players.has(peer) or not is_pvp() or team not in [0,1]:return false
+ if MatchRules.count_team(players,team,peer)>=int(rules.team_size):
+  if peer!=1:_lobby_error.rpc_id(peer,"That team is full. Choose the other team.")
+  else:status="That team is full. Choose the other team.";refresh_lobby()
+  return false
+ if players[peer].team!=team:players[peer].team=team;players[peer].ready=false
+ broadcast_lobby();return true
+func set_pvp_rules(size: int,bots: bool) -> bool:
+ if not is_host() or match_started or not is_pvp() or size not in [1,2,3]:return false
+ if MatchRules.count_team(players,0)>size or MatchRules.count_team(players,1)>size:
+  status="Move players to fit the smaller team size first.";refresh_lobby();return false
+ rules=MatchRules.settings("pvp",size,bots)
+ for entry in players.values():entry.ready=false
+ if transport=="steam":SteamSession.update_rules(rules)
+ broadcast_lobby();return true
 @rpc("authority","call_remote","reliable",1)
-func _lobby(configs: Dictionary) -> void:
- players = configs.duplicate(true)
+func _lobby_error(message: String) -> void:
+ status=message;refresh_lobby()
+@rpc("authority","call_remote","reliable",1)
+func _lobby(configs: Dictionary,settings: Dictionary={}) -> void:
+ players=configs.duplicate(true)
+ var old_mode=rules.mode
+ if not settings.is_empty():rules=MatchRules.settings(str(settings.mode),int(settings.team_size),bool(settings.fill_bots))
+ if old_mode!=rules.mode and is_instance_valid(main) and main.menu_page=="lobby":main._show_lobby()
  refresh_lobby()
 func refresh_lobby() -> void:
- if is_instance_valid(main): main._refresh_lobby()
+ if is_instance_valid(main):main._refresh_lobby()
 func start_match() -> void:
- if not can_start(): return
- var configs: Array = []
- var peers = players.keys()
- peers.sort()
- for peer in peers: configs.append(players[peer].duplicate(true))
- var reds = ChampionData.CHAMPIONS.keys()
- reds.shuffle()
- var blues: Array = []
- for player in configs: blues.append(player.hero)
- for hero in reds:
-  if blues.size() >= 3: break
-  if not blues.has(hero): blues.append(hero)
- var config = {"players":configs,"blue":blues,"red":MatchRoster.enemy_team(blues),"stage":Progression.difficulty,"allied_bots":Progression.allied_bots}
- match_started = true
- multiplayer.multiplayer_peer.refuse_new_connections = true
- if transport == "steam": SteamSession.lock_match()
+ if not can_start():return
+ var config=MatchRules.build_config(players,rules,Progression.difficulty,Progression.allied_bots)
+ for entry in config.players:players[entry.peer]=entry.duplicate(true)
+ match_config=config.duplicate(true)
+ match_started=true
+ multiplayer.multiplayer_peer.refuse_new_connections=not is_pvp()
+ if transport=="steam":SteamSession.lock_match()
  _begin_match.rpc(config)
 @rpc("authority","call_local","reliable",1)
 func _begin_match(config: Dictionary) -> void:
- match_started = true
- draft_states.clear(); last_state_time = -1
- motion_samples.clear(); incoming_frames.clear(); snapshot_sequence=0; last_snapshot_sequence=-1
- if is_instance_valid(main): main._start_network_match(config)
+ match_started=true;match_config=config.duplicate(true)
+ rules=MatchRules.settings(str(config.get("mode","pve")),int(config.get("team_size",3)),bool(config.get("fill_bots",true)))
+ draft_states.clear();last_state_time=-1
+ motion_samples.clear();incoming_frames.clear();snapshot_sequence=0;last_snapshot_sequence=-1
+ resume_requested=false;reconnect_info.clear()
+ if is_instance_valid(main):main._start_network_match(config)
 func send_command(kind: String, data: Dictionary = {}) -> void:
  if not is_client() or not GameState.started: return
  _command.rpc_id(1,kind,data)
 @rpc("any_peer","call_remote","reliable",1)
 func _command(kind: String, data: Dictionary) -> void:
  if not is_host() or not GameState.started or not GameState.running: return
+ if kind not in ["order","skill","summoner","rank","recall","stop","buy","sell","draft","permanent"]:return
  var sender = multiplayer.get_remote_sender_id()
  var c = null
  for hero in GameState.champions:
@@ -249,6 +329,15 @@ func choose_draft(c,index: int) -> void:
  draft.pending.pop_front()
  draft.choices.clear()
  fill_choices(draft,c)
+func registered_peers() -> Array:
+ var peers=[]
+ for peer in multiplayer.get_peers():
+  if not players.has(peer):continue
+  if transport=="lan" and multiplayer.multiplayer_peer is ENetMultiplayerPeer:
+   var packet_peer=multiplayer.multiplayer_peer.get_peer(peer)
+   if packet_peer==null or packet_peer.get_state()!=ENetPacketPeer.STATE_CONNECTED or packet_peer.get_channels()<3:continue
+  peers.append(peer)
+ return peers
 func replicate(delta: float) -> void:
  if not is_host() or not GameState.started or not GameState.running: return
  state_timer += delta
@@ -257,7 +346,7 @@ func replicate(delta: float) -> void:
  snapshot_sequence+=1
  var packet = LanSnapshot.encode()
  packet.sequence=snapshot_sequence
- for peer in multiplayer.get_peers():
+ for peer in registered_peers():
   var state = packet.duplicate()
   state.draft = draft_states.get(peer,{"pending":[],"choices":[],"picked":[]})
   var compressed=var_to_bytes(state).compress(FileAccess.COMPRESSION_DEFLATE)
@@ -321,6 +410,10 @@ func smooth_positions(delta: float) -> void:
   var rate=45. if node==GameState.player else 32.
   node.global_position=node.global_position.lerp(target,1.-exp(-delta*rate))
 func _process(delta: float) -> void:
+ if is_host():
+  var now=Time.get_ticks_msec()/1000.
+  for token in disconnected.keys():
+   if now>disconnected[token].expires:disconnected.erase(token)
  if not is_client() or not GameState.started: return
  for c in GameState.champions:
   if c.hit_flash>0:
@@ -329,7 +422,8 @@ func _process(delta: float) -> void:
  BrushVision.update_presentation()
 func send_effect(kind: String, actor, point: Vector2, data: Dictionary = {}) -> void:
  if not is_host() or not GameState.started or not GameState.running: return
- _effect.rpc(kind,GameState.champions.find(actor),point,data)
+ for peer in registered_peers():
+  _effect.rpc_id(peer,kind,GameState.champions.find(actor),point,data)
 @rpc("authority","call_remote","unreliable",2)
 func _effect(kind: String, actor_index: int, point: Vector2, data: Dictionary) -> void:
  if not is_client() or not GameState.started or not is_instance_valid(main): return
@@ -351,10 +445,45 @@ func _effect(kind: String, actor_index: int, point: Vector2, data: Dictionary) -
    var victim = GameState.champions[data.victim]
    main.hud.get_node("HudRoot").log_kill(actor,victim)
 func finish(winner: int) -> void:
- if is_host(): _finish.rpc(winner,LanSnapshot.encode())
+ if is_host():
+  disconnected.clear()
+  for peer in registered_peers():
+   _finish.rpc_id(peer,winner,LanSnapshot.encode())
 @rpc("authority","call_remote","reliable",1)
 func _finish(winner: int, packet: Dictionary) -> void:
  if not is_client() or not GameState.started: return
  last_state_time = packet.time
  LanSnapshot.apply(packet,self)
  main._end_game(winner)
+
+func can_reconnect() -> bool:
+ return not active and not reconnect_info.is_empty() and Time.get_ticks_msec()/1000.<reconnect_info.expires
+func reconnect_game() -> Error:
+ if not can_reconnect():return ERR_UNAVAILABLE
+ var saved=reconnect_info.duplicate(true)
+ var error=SteamSession.join_game(str(saved.lobby),true) if saved.transport=="steam" else join_game(saved.address)
+ if error==OK:
+  reconnect_info=saved;resume_token=saved.token;resume_requested=true
+  status="Reconnecting to your PvP hero…"
+ return error
+@rpc("any_peer","call_remote","reliable",1)
+func _resume_player(token: String,version: String) -> void:
+ if not is_host():return
+ var peer=multiplayer.get_remote_sender_id()
+ if peer<=1 or players.has(peer) or not multiplayer.get_peers().has(peer):return
+ if not is_pvp() or not GameState.running or version!=build_version() or not disconnected.has(token):
+  multiplayer.multiplayer_peer.disconnect_peer(peer);return
+ var entry=disconnected[token]
+ if Time.get_ticks_msec()/1000.>entry.expires:
+  disconnected.erase(token);multiplayer.multiplayer_peer.disconnect_peer(peer);return
+ if transport=="steam" and (not SteamSession.peer_allowed(peer) or int(multiplayer.multiplayer_peer.get_steam_id_for_peer_id(peer))!=entry.steam_id):
+  multiplayer.multiplayer_peer.disconnect_peer(peer);return
+ var c=GameState.champions[entry.slot]
+ var config=entry.config.duplicate(true);config.peer=peer;config.ready=true
+ players[peer]=config;peer_tokens[peer]=token
+ draft_states[peer]=entry.draft.duplicate(true)
+ c.owner_peer=peer;c.is_bot=false;c.char_name=config.name;c.name_label.text=c.char_name;c.stop_actions()
+ disconnected.erase(token)
+ var start=match_config.duplicate(true);start.players=players.values().duplicate(true);start.resuming=true
+ _welcome.rpc_id(peer,token);_lobby.rpc_id(peer,players,rules);_begin_match.rpc_id(peer,start)
+ state_timer=SNAPSHOT_INTERVAL

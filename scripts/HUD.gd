@@ -208,7 +208,7 @@ func _build_top_bar() -> void:
 	wave_label = Label.new()
 	wave_label.text = "WAVE 0"
 	difficulty_label = Label.new()
-	difficulty_label.text = "N%d" % GameState.difficulty
+	difficulty_label.text = "PVP • "+("BLUE" if GameState.player!=null and GameState.player.team==0 else "RED") if GameState.is_pvp() else "N%d" % GameState.difficulty
 	difficulty_label.add_theme_color_override("font_color", Color(1.0, 0.86, 0.52))
 	h.add_child(difficulty_label)
 	wave_label.add_theme_font_size_override("font_size", 11)
@@ -777,7 +777,7 @@ func build_for_player(c) -> void:
 	player_portrait.texture = portrait
 	player_portrait.mouse_filter=Control.MOUSE_FILTER_STOP
 	if not player_portrait.mouse_entered.is_connected(show_passive_description):player_portrait.mouse_entered.connect(show_passive_description);player_portrait.mouse_exited.connect(hide_skill_description)
-	difficulty_label.text = "N%d" % GameState.difficulty
+	difficulty_label.text = "PVP • "+("BLUE" if GameState.player!=null and GameState.player.team==0 else "RED") if GameState.is_pvp() else "N%d" % GameState.difficulty
 	player_name.text = c.hero.name
 	# Configure SkillSlot widgets with hero data and wire interactions
 	for i in range(4):
@@ -811,8 +811,8 @@ func build_for_player(c) -> void:
 	scoreboard.hide()
 	# Build team rows
 	for ch in GameState.champions:
-		var row = _create_team_row(ch, ch.team == Constants.BLUE)
-		if ch.team == Constants.BLUE: blue_panel.add_child(row)
+		var row = _create_team_row(ch, ch.team == player.team)
+		if ch.team == player.team: blue_panel.add_child(row)
 		else: red_panel.add_child(row)
 		row.visible = ch.roster_active
 		team_rows[ch] = row

@@ -3,7 +3,7 @@ extends RefCounted
 static func show_browser(game) -> void:
  var root=RiftMenus.backdrop(game,"steam")
  var panel=RiftMenus.centered(root,95)
- panel.add_child(RiftMenus.label("STEAM CO-OP",46))
+ panel.add_child(RiftMenus.label("STEAM MULTIPLAYER",46))
  panel.add_child(RiftMenus.label("Join a friend's Howling Rift lobby",22))
  var status=RiftMenus.label(SteamSession.status,20)
  status.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
@@ -29,7 +29,7 @@ static func show_browser(game) -> void:
    list.add_child(RiftMenus.label("No matching friend lobbies found.\nAsk your host for an invite or lobby code.",20))
   for entry in SteamSession.friends:
    var id=int(entry.id)
-   var row=RiftMenus.button("%s • %d/3 • JOIN" % [entry.name,entry.members],func():
+   var row=RiftMenus.button("%s • %s • %d/%d • JOIN" % [entry.name,"PVP" if entry.get("mode","pve")=="pvp" else "PVE",entry.members,entry.get("capacity",3)],func():
     var error=SteamSession.join_game(str(id))
     if error!=OK:status.text="Could not join: "+error_string(error))
    row.add_theme_font_size_override("font_size",20)

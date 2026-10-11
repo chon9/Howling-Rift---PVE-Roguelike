@@ -69,7 +69,7 @@ func setup(_team: int, _type: String, pos: Vector2, _variant: String = "") -> vo
 	var d = SPECS[_type]
 	hp = d["hp"]; hp_max = hp
 	atk_dmg = d["dmg"]
-	if team == Constants.RED:
+	if team == Constants.RED and not GameState.is_pvp():
 		var scaling = Progression.scaling(GameState.difficulty)
 		hp_max *= scaling.structure_health
 		hp = hp_max

@@ -107,8 +107,8 @@ func refresh() -> void:
   row.cs.text = str(champion.cs)
   row.gold.text = "%dg" % int(champion.gold)
   row.gold.tooltip_text="Bonus gold from defeats: %dg · Last grant: %dg" % [champion.comeback_gold_awarded,champion.last_comeback_gold]
-  row.level.tooltip_text="Level %d / %d · XP gain x%.2f" % [champion.level,Constants.MAX_LEVEL,champion.difficulty_stats.get("experience",1.) if champion.is_bot and champion.team==Constants.RED else 1.]
-  row.hero.tooltip_text="Enemy comeback gold starts at death 11 and increases every death." if champion.is_bot and champion.team==Constants.RED else ""
+  row.level.tooltip_text="Level %d / %d · XP gain x%.2f" % [champion.level,Constants.MAX_LEVEL,champion.difficulty_stats.get("experience",1.) if champion.is_bot and champion.team==Constants.RED and not GameState.is_pvp() else 1.]
+  row.hero.tooltip_text="Enemy comeback gold starts at death 11 and increases every death." if champion.is_bot and champion.team==Constants.RED and not GameState.is_pvp() else ""
   row.portrait.modulate = Color(0.4,0.4,0.4) if champion.dead else Color.WHITE
   for i in range(6):
    var id = champion.inventory[i]

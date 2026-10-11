@@ -13,7 +13,7 @@ static func clean_buffs(buffs: Dictionary) -> Dictionary:
   result[key] = buff
  return result
 static func encode() -> Dictionary:
- var packet = {"time":GameState.time,"wave":GameState.wave_num,"score":GameState.score.duplicate(),"stage":GameState.difficulty,"reward":GameState.reward_difficulty,"allied_bots":GameState.allied_bots,"champs":[],"minions":[],"structures":[],"projectiles":[],"aoes":[]}
+ var packet = {"time":GameState.time,"wave":GameState.wave_num,"score":GameState.score.duplicate(),"stage":GameState.difficulty,"reward":GameState.reward_difficulty,"allied_bots":GameState.allied_bots,"mode":GameState.match_mode,"team_size":GameState.team_size,"fill_bots":GameState.fill_bots,"champs":[],"minions":[],"structures":[],"projectiles":[],"aoes":[]}
  for c in GameState.champions:
   c.vision_teams=[BrushVision.visible_to(c,Constants.BLUE),BrushVision.visible_to(c,Constants.RED)]
   var state = {"position":c.world_pos(),"buffs":clean_buffs(c.buffs),"attack":target_ref(c.attack_target),"flay_charge":c.flay_charge}
@@ -47,6 +47,7 @@ static func apply(packet: Dictionary, session) -> void:
  GameState.score = packet.score
  GameState.difficulty = packet.stage
  GameState.allied_bots = bool(packet.get("allied_bots",true))
+ GameState.match_mode=str(packet.get("mode","pve"));GameState.team_size=int(packet.get("team_size",3));GameState.fill_bots=bool(packet.get("fill_bots",true))
  GameState.reward_difficulty = packet.reward
  for index in range(mini(packet.champs.size(),GameState.champions.size())):
   var c = GameState.champions[index]
@@ -72,7 +73,7 @@ static func apply(packet: Dictionary, session) -> void:
   GameState.champions[index].attack_target = resolve_target(packet.champs[index].attack,session)
  BrushVision.update_presentation()
  var ui = session.main.hud.get_node("HudRoot")
- ui.difficulty_label.text = "N%d" % GameState.difficulty
+ ui.difficulty_label.text = "PVP • "+("BLUE" if GameState.player.team==0 else "RED") if GameState.is_pvp() else "N%d" % GameState.difficulty
  if GameState.player.dead: ui.show_death_overlay()
  else: ui.hide_death_overlay()
  if packet.has("draft"):

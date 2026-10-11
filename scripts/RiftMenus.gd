@@ -51,6 +51,7 @@ static func start(game) -> void:
  screen.game=game
  root.add_child(screen)
 static func lobby(game) -> void:
+ if LanSession.is_pvp():pvp_lobby(game);return
  var root = backdrop(game,"lobby")
  var panel = centered(root,85)
  panel.add_theme_constant_override("separation",12)
@@ -84,13 +85,13 @@ static func lobby(game) -> void:
 static func pause(game, root: Control) -> void:
  var panel = centered(root,170)
  panel.add_child(label("MATCH MENU",46))
- panel.add_child(label("Co-op match continues while menus are open" if LanSession.active else "MATCH PAUSED",20))
+ panel.add_child(label("The multiplayer match continues while menus are open" if LanSession.active else "MATCH PAUSED",20))
  panel.add_child(button("RESUME [ESC]",func(): game.toggle_in_game_menu()))
- panel.add_child(button("PERMANENT UPGRADES / SETTINGS",func(): game._show_pause_upgrades()))
- panel.add_child(label("N%d • %s\nDifficulty locked until the next game" % [GameState.difficulty,Progression.reward_preview(GameState.difficulty)],20))
+ panel.add_child(button("SETTINGS" if GameState.is_pvp() else "PERMANENT UPGRADES / SETTINGS",func(): game._show_pause_upgrades()))
+ panel.add_child(label("PVP • Equal starting stats • Level-up builds enabled" if GameState.is_pvp() else "N%d • %s\nDifficulty locked until the next game" % [GameState.difficulty,Progression.reward_preview(GameState.difficulty)],20))
  panel.add_child(button("RETURN TO MAIN MENU",func(): game._request_return()))
  panel.add_child(button("QUIT GAME",func(): game._request_quit()))
- panel.add_child(label("The host chooses difficulty before a co-op match." if LanSession.active else "Permanent progress stays saved between matches.",20))
+ panel.add_child(label("PvP rules are locked for this match." if GameState.is_pvp() else "The host chooses difficulty before a co-op match." if LanSession.active else "Permanent progress stays saved between matches.",20))
 
 static func difficulty_picker(panel: VBoxContainer) -> void:
  var row = HBoxContainer.new()
@@ -125,3 +126,76 @@ static func bot_picker(parent: Control) -> CheckButton:
  toggle.toggled.connect(func(enabled): Progression.allied_bots = enabled; Progression.save_profile())
  parent.add_child(toggle)
  return toggle
+
+static func pvp(game) -> void:
+ var root=backdrop(game,"pvp");var panel=centered(root,125)
+ panel.add_child(label("PVP ARAM",48))
+ panel.add_child(label("Equal starting stats • Defeat the enemy throne",20))
+ var size=OptionButton.new();size.name="PvpRoomSize"
+ for value in ["1v1","2v2","3v3"]:size.add_item(value)
+ size.select(2);size.custom_minimum_size=Vector2(520,50);size.add_theme_font_size_override("font_size",24);panel.add_child(size)
+ var fill=CheckButton.new();fill.name="PvpFillBots";fill.text="FILL EMPTY SLOTS WITH AI";fill.button_pressed=true
+ fill.add_theme_font_size_override("font_size",22);panel.add_child(fill)
+ panel.add_child(button("HOST STEAM PVP",func():
+  var error=SteamSession.host_game("pvp",size.selected+1,fill.button_pressed)
+  if error!=OK:game.menu_status.text=SteamSession.status if error==ERR_UNAVAILABLE else error_string(error)))
+ panel.add_child(button("HOST LAN PVP",func():
+  var error=LanSession.host_game("pvp",size.selected+1,fill.button_pressed)
+  if error==OK:game._show_lobby()
+  else:game.menu_status.text=error_string(error)))
+ panel.add_child(button("JOIN STEAM ROOM",func():SteamLobbyMenu.show_browser(game)))
+ var row=HBoxContainer.new();var address=LineEdit.new();address.name="PvpLanAddress";address.placeholder_text="Host's LAN IP";address.text=game.last_lan_address
+ address.custom_minimum_size=Vector2(310,54);address.add_theme_font_size_override("font_size",22);row.add_child(address)
+ var join=button("JOIN LAN",func():
+  game.last_lan_address=address.text.strip_edges()
+  var error=LanSession.join_game(game.last_lan_address)
+  if error==OK:game._show_lobby()
+  else:game.menu_status.text=error_string(error))
+ join.custom_minimum_size.x=210;row.add_child(join);panel.add_child(row)
+ game.menu_status=label("Permanent upgrades, relics and N difficulty apply to PvE.\nLevel-up builds and the normal shop remain active in PvP.",19)
+ game.menu_status.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;panel.add_child(game.menu_status)
+ panel.add_child(button("BACK TO MAIN MENU",func():game._show_main_menu()))
+static func pvp_lobby(game) -> void:
+ var root=backdrop(game,"lobby");var panel=centered(root,65)
+ panel.offset_left=-470;panel.offset_right=470
+ panel.add_child(label("PVP ARAM • "+("STEAM" if LanSession.transport=="steam" else "LAN"),42))
+ panel.add_child(label("Equal starting stats • Both teams must press Ready",20))
+ var controls=HBoxContainer.new();controls.alignment=BoxContainer.ALIGNMENT_CENTER;controls.add_theme_constant_override("separation",24)
+ game.lobby_size=OptionButton.new();game.lobby_size.name="PvpTeamSize"
+ for value in ["1v1","2v2","3v3"]:game.lobby_size.add_item(value)
+ game.lobby_size.custom_minimum_size=Vector2(180,42);game.lobby_size.add_theme_font_size_override("font_size",22)
+ game.lobby_size.select(int(LanSession.rules.team_size)-1);game.lobby_size.disabled=not LanSession.is_host()
+ game.lobby_size.item_selected.connect(func(index):LanSession.set_pvp_rules(index+1,bool(LanSession.rules.fill_bots)))
+ controls.add_child(game.lobby_size)
+ game.lobby_bots=CheckButton.new();game.lobby_bots.name="PvpLobbyBots";game.lobby_bots.text="FILL EMPTY SLOTS WITH AI";game.lobby_bots.button_pressed=LanSession.rules.fill_bots
+ game.lobby_bots.disabled=not LanSession.is_host();game.lobby_bots.add_theme_font_size_override("font_size",20)
+ game.lobby_bots.toggled.connect(func(enabled):LanSession.set_pvp_rules(int(LanSession.rules.team_size),enabled))
+ controls.add_child(game.lobby_bots);panel.add_child(controls)
+ game.menu_status=label(LanSession.status,18);game.menu_status.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;panel.add_child(game.menu_status)
+ var teams=HBoxContainer.new();teams.add_theme_constant_override("separation",20);game.lobby_team_rosters.clear()
+ for team in range(2):
+  var col=VBoxContainer.new();col.custom_minimum_size.x=460
+  var title=label("BLUE TEAM" if team==0 else "RED TEAM",28);title.add_theme_color_override("font_color",Color("80c6f6") if team==0 else Color("f3958b"));col.add_child(title)
+  var list=label("",21);list.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;list.custom_minimum_size=Vector2(460,160);col.add_child(list)
+  game.lobby_team_rosters.append(list);teams.add_child(col)
+ panel.add_child(teams)
+ var selection=HBoxContainer.new();selection.alignment=BoxContainer.ALIGNMENT_CENTER;selection.add_theme_constant_override("separation",20)
+ selection.add_child(label("YOUR TEAM",22));game.lobby_team=OptionButton.new();game.lobby_team.name="PvpTeam"
+ game.lobby_team.add_item("BLUE");game.lobby_team.add_item("RED");game.lobby_team.custom_minimum_size=Vector2(180,44);game.lobby_team.add_theme_font_size_override("font_size",22)
+ game.lobby_team.item_selected.connect(func(team):LanSession.change_team(team));selection.add_child(game.lobby_team)
+ game.lobby_ready=button("READY",func():
+  var local=LanSession.local_config()
+  if not local.is_empty():LanSession.ready_player(local.hero,local.spells,{},not local.get("ready",false)))
+ game.lobby_ready.name="PvpReady";game.lobby_ready.custom_minimum_size=Vector2(240,48);selection.add_child(game.lobby_ready);panel.add_child(selection)
+ panel.add_child(button("CHOOSE HERO & SUMMONERS",func():
+  var local=LanSession.local_config()
+  if not local.is_empty():LanSession.ready_player(local.hero,local.spells,{},false)
+  game._show_menu()))
+ game.lobby_hint=label("",19);game.lobby_hint.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;panel.add_child(game.lobby_hint)
+ game.lobby_start=button("START PVP MATCH",func():LanSession.start_match());game.lobby_start.name="StartPvpMatch";game.lobby_start.visible=LanSession.is_host();panel.add_child(game.lobby_start)
+ if LanSession.transport=="steam":
+  var row=HBoxContainer.new();row.alignment=BoxContainer.ALIGNMENT_CENTER
+  var invite=button("INVITE FRIENDS",func():SteamSession.invite_friends());invite.custom_minimum_size.x=280;row.add_child(invite)
+  var code=button("COPY LOBBY CODE",func():DisplayServer.clipboard_set(str(SteamSession.lobby_id)));code.custom_minimum_size.x=280;row.add_child(code);panel.add_child(row)
+ panel.add_child(button("LEAVE LOBBY",func():LanSession.leave();game._show_main_menu()))
+ game._refresh_lobby()

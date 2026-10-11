@@ -1,6 +1,6 @@
 class_name CombatParticipation
 extends RefCounted
-const ASSIST_GOLD = 150
+const ASSIST_GOLD = 75
 const WINDOW = 10.0
 static func valid_hero(c) -> bool:
  return is_instance_valid(c) and c.kind == "champion" and c.roster_active

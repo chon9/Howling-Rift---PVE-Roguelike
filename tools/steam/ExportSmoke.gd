@@ -18,7 +18,7 @@ func run() -> void:
  check(load("res://scripts/DeadeyeCue.gd")!=null,"export contains synchronized lock presentation")
  check(game.menu.find_child("AlliedBots",true,false)!=null,"export exposes allied-bot rule")
  check(game.graphics_quality.screen.material.shader!=null and game.graphics_quality.layer<game.hud.layer,"export contains world-only FXAA below HUD")
- check(load("res://scripts/CombatParticipation.gd").ASSIST_GOLD==150,"export has small assist gold reward")
+ check(load("res://scripts/CombatParticipation.gd").ASSIST_GOLD==75,"export has small assist gold reward")
  var updater=root.get_node("GameUpdates")
  check(FileAccess.file_exists("res://assets/updater/UpdateGame.ps1"),"exported updater helper ships")
  check(game.menu.find_child("UpdateAction",true,false)!=null,"exported menu shows update action")

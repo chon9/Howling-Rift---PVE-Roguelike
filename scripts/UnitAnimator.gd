@@ -61,6 +61,8 @@ func pose() -> Dictionary:
  if unit.stun>0: return {"action":"hit","frame":1}
  if unit.kind == "champion":
   if unit.recall_time>=0: return {"action":"recall","frame":int(unit.recall_time*5)%6}
+  var charge=DeadeyeCue.channel(unit)
+  if not charge.is_empty():return {"action":"r","frame":mini(3,int(charge.progress*4))}
   if unit.buffs.has("spin"):
    var spin_action = "r" if unit.hero_key=="katarina" else "e"
    if unit.anim_action in ["idle", "run", spin_action] or unit.anim_elapsed >= unit.anim_duration:

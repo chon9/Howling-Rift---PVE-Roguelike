@@ -141,6 +141,11 @@ func _draw() -> void:
 	if is_vesper_bolt():
 		_draw_vesper_bolt()
 		return
+	if readable_trail():
+		var length=clampf(visual_dimensions.x*.85,18.,42.)
+		draw_line(Vector2(-length,0),Vector2(2,0),Color(0.015,0.025,0.04,.85),4.5,true)
+		draw_line(Vector2(-length,0),Vector2(2,0),Color(color.lightened(.4),.8),2.2,true)
+		draw_circle(Vector2(2,0),2,Color("fff4da"))
 	if wind_kind >= 0:
 		var frame = int(animation_time*14)%4
 		var art_scale = visual_scale
@@ -331,3 +336,6 @@ func update_frame(delta: float) -> void:
 func _destroy() -> void:
 	GameState.projectiles.erase(self)
 	queue_free()
+
+func readable_trail() -> bool:
+	return wind_kind!=1 and damage_type not in ["auto","secondary","fragment"] and (not effect_id.is_empty() or (is_instance_valid(src) and src.kind=="champion"))

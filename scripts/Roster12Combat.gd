@@ -164,7 +164,7 @@ static func tick(c,delta: float) -> void:
    var artillery_target=GameState.find_nearest_enemy(c,c.world_pos(),1000)
    if artillery_target!=null:Roster12Kits.recast(c,3,artillery_target.world_pos())
   if c.stun>0:c.buffs.erase("artillery")
- if c.buffs.has("deadeye") and (c.stun>0 or c.has_move_target or c.world_pos().distance_to(c.buffs.deadeye.origin)>10):c.buffs.erase("deadeye")
+ if c.buffs.has("deadeye") and (c.stun>0 or c.has_move_target or c.world_pos().distance_to(c.buffs.deadeye.origin)>10 or DeadeyeCue.channel(c).is_empty()):c.buffs.erase("deadeye")
  if c.buffs.has("parry"):c.stop_actions();c.stun=0.
  if c.buffs.has("grand_challenge") and c.hp<=0 and c.buffs.grand_challenge.mask>0:
   var src=c.buffs.grand_challenge.src
@@ -188,7 +188,10 @@ static func expire(c,key: String,b: Dictionary) -> void:
    if is_instance_valid(u) and not u.dead:Roster12Kits.dash(c,u.world_pos())
   "deadeye":
    var u=Roster12Kits.resolve(b.target)
-   if is_instance_valid(u) and not u.dead and not c.dead and c.stun<=0:Roster12Kits.bolt(c,u.world_pos(),"caitlyn_r",{"homing":u,"interceptable":true,"life":3.,"speed":1100.,"is_ult":true})
+   if is_instance_valid(u) and not u.dead and u.is_targetable and not c.dead and c.stun<=0:
+    Roster12Kits.bolt(c,u.world_pos(),"caitlyn_r",{"homing":u,"interceptable":true,"life":3.,"speed":1100.,"is_ult":true})
+    c.animator.start("r",.24);c.anim_from=4;c.anim_to=5
+    c.get_tree().call_group("game_main","play_sfx","deadeye_fire",c)
   "arcanopulse":
    if not c.dead and c.stun<=0:c.buffs.arcanopulse=b;release_beam(c,b.point);c.buffs.erase("arcanopulse")
   "force_of_will":

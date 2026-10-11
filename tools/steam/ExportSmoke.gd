@@ -14,6 +14,8 @@ func run() -> void:
  check(manifest is Dictionary and not manifest.is_empty(),"animation manifest ships in PCK")
  var game=load("res://scripts/Main.gd").new();root.add_child(game)
  check(game.menu_page=="main","export boots to main menu")
+ check(load("res://assets/audio/combat-v2/deadeye_charge.wav")!=null,"export contains original Deadeye charge audio")
+ check(load("res://scripts/DeadeyeCue.gd")!=null,"export contains synchronized lock presentation")
  check(game.menu.find_child("AlliedBots",true,false)!=null,"export exposes allied-bot rule")
  check(game.graphics_quality.screen.material.shader!=null and game.graphics_quality.layer<game.hud.layer,"export contains world-only FXAA below HUD")
  check(load("res://scripts/CombatParticipation.gd").ASSIST_GOLD==150,"export has small assist gold reward")

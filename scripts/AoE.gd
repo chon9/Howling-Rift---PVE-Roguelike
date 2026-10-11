@@ -28,6 +28,7 @@ var follows_src: bool = false
 var airborne_time: float = 0.
 var spell_id: String = ""
 var special_hit: bool = false
+var readable_boundary: bool = false
 var broken_walls: Array = [false,false,false,false,false]
 var previous_positions: Dictionary = {}
 
@@ -52,6 +53,7 @@ func setup(_src, pos: Vector2, opts: Dictionary) -> void:
 	stun_time = opts.get("stun",0.0)
 	wind_kind = int(opts.get("wind_kind",-1))
 	slow_duration = opts.get("slow_dur", 0.0)
+	readable_boundary = (dmg>0 or stun_time>0 or slow_pct>0) and cone_ang < -900 and zone_kind not in ["soul","dagger","sphere","heal_field","lantern","box"] and effect_id not in ["xinzhao_w","lucian_q","xerath_q","xinzhao_q","xinzhao_e","thresh_e","darius_e"]
 	z_index = Constants.Z_AOE
 	art_row = SpellArt.row_for(src)
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
@@ -64,7 +66,10 @@ func _draw() -> void:
 		return
 	if KitEffectArt.has_effect(effect_id):
 		_draw_kit_effect()
+		draw_set_transform(Vector2.ZERO)
+		_draw_readable_boundary()
 		return
+	_draw_readable_boundary()
 	if ring:
 		var fade=clampf((duration-elapsed)*2.,0.,1.)
 		draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(color,fade*.85),7.,true)
@@ -233,3 +238,14 @@ func _roster_zone(delta: float) -> void:
 	for unit in GameState.champions:
 		if unit.dead or unit.team==team or unit.world_pos().distance_to(global_position)>radius+unit.size*.3:continue
 		Roster12Kits.control(unit,1.5);unit.buffs.rifle_mark={"time":4.,"src":src};elapsed=duration;break
+
+func _draw_readable_boundary() -> void:
+	if not readable_boundary:return
+	var warning=elapsed<arm_delay
+	var friendly=not is_instance_valid(GameState.player) or team==GameState.player.team
+	var tint=Color("8adfff") if friendly else Color("ff8b68")
+	var fade=clampf((duration-elapsed)/.15,0.,1.)
+	draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(0.015,0.025,0.04,.75*fade),4.,true)
+	draw_arc(Vector2.ZERO,radius,0,TAU,64,Color(tint,(.9 if warning else .65)*fade),1.6,true)
+	if warning:
+		draw_arc(Vector2.ZERO,radius,-PI/2,-PI/2+TAU*clampf(elapsed/arm_delay,0.,1.),64,Color("fff4da"),3.,true)

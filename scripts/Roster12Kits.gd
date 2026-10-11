@@ -142,7 +142,9 @@ static func cast(c,id: String,point: Vector2) -> bool:
   "caitlyn_r":
    victim=NewHeroKits.target(c,point,900)
    if victim==null or victim.kind!="champion":return false
-   c.stop_actions();c.buffs.deadeye={"time":1.,"target":ref(victim),"origin":c.world_pos()};visual(c,c.world_pos(),id,60,1.)
+   c.stop_actions();c.buffs.deadeye={"time":1.,"duration":1.,"serial":c.anim_serial+1,"target":ref(victim),"origin":c.world_pos()}
+   c.facing=(victim.world_pos()-c.world_pos()).normalized()
+   BrushVision.reveal(c,1.25);BrushVision.reveal(victim,1.25)
   "lucian_q":
    victim=NewHeroKits.target(c,point,440)
    if victim==null:return false

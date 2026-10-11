@@ -694,7 +694,8 @@ func try_cast_skill(idx: int, pt: Vector2) -> bool:
 	if hero_key=="syndra" and idx==0 and passive_state.get("splinters",0)>=40:skill_cds[0]=0. if passive_state.get("q_charges",0)>0 else passive_state.q_recharge
 	if idx==3 and passive_state.get("reset_r",false):skill_cds[3]=0.;passive_state.erase("reset_r")
 	if recall_time >= 0: recall_time = -1.0
-	get_tree().call_group("game_main", "play_sfx", "ultimate" if idx == 3 else "spell", self)
+	if not (hero_key=="caitlyn" and idx==3):
+		get_tree().call_group("game_main", "play_sfx", "ultimate" if idx == 3 else "spell", self)
 	if hero_key != "yasuo" and not ExpansionRoster.KEYS.has(hero_key) and not hero_key in RosterExpansion12.KEYS: get_tree().call_group("game_main", "spawn_spell_burst", self, global_position, 45.0 if idx != 3 else 70.0)
 	return true
 

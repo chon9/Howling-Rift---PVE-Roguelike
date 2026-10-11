@@ -22,7 +22,7 @@ func refresh() -> void:
  var next_shield = maxf(0, unit.shield) if unit.kind == "champion" and not unit.dead else 0.0
  if next_shield != shield_amount: shield_pulse = 0.3 if next_shield > shield_amount else 0.18
  shield_amount = next_shield
- visible = stun_remaining>0 or ignite_remaining>0 or shield_amount>0 or ["grand_challenge","rifle_mark","artillery","arcanopulse","parry","roster_attack"].any(func(k):return unit.buffs.has(k)) or unit.buffs.keys().any(func(k):return k.begins_with("vital_"))
+ visible = not DeadeyeCue.channel(unit).is_empty() or not DeadeyeCue.locks_on(unit).is_empty() or stun_remaining>0 or ignite_remaining>0 or shield_amount>0 or ["grand_challenge","rifle_mark","artillery","arcanopulse","parry","roster_attack"].any(func(k):return unit.buffs.has(k)) or unit.buffs.keys().any(func(k):return k.begins_with("vital_"))
  queue_redraw()
 
 func _process(delta: float) -> void:
@@ -37,11 +37,11 @@ func fire_frame() -> Rect2:
  return Rect2(Vector2(int(phase*12)%4,0)*cell,cell)
 
 func _badge(text: String, y: float, color: Color, spiral: bool = false) -> void:
- var width = font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,13).x+16
+ var width = font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,14).x+16
  var left = -width/2+10 if spiral else -width/2
  draw_style_box(_background(color),Rect2(left-4,y-18,width+8,24))
- draw_string_outline(font,Vector2(left+8,y),text,HORIZONTAL_ALIGNMENT_LEFT,-1,13,3,Color.BLACK)
- draw_string(font,Vector2(left+8,y),text,HORIZONTAL_ALIGNMENT_LEFT,-1,13,color.lightened(0.45))
+ draw_string_outline(font,Vector2(left+8,y),text,HORIZONTAL_ALIGNMENT_LEFT,-1,14,1,Color.BLACK)
+ draw_string(font,Vector2(left+8,y),text,HORIZONTAL_ALIGNMENT_LEFT,-1,14,color.lightened(0.45))
  draw_line(Vector2(left,y+4),Vector2(left+width,y+4),color,2,true)
  if spiral:
   var center = Vector2(left-17,y-7)
@@ -63,6 +63,7 @@ func _background(color: Color) -> StyleBoxFlat:
 
 func _draw() -> void:
  if not is_instance_valid(unit) or unit.dead: return
+ _draw_deadeye()
  _draw_roster_status()
  var hero = unit.kind == "champion"
  var head_y = -Constants.CHAMP_ART_HEIGHT-56 if hero else unit.art_rect().position.y-24.0
@@ -109,3 +110,32 @@ func _draw_roster_status() -> void:
  elif unit.buffs.has("artillery"):_badge("ARTILLERY %d • %.1fs" % [unit.buffs.artillery.shots,unit.buffs.artillery.time],y,Color("8adfff"))
  elif unit.buffs.has("arcanopulse"):_badge("CHARGING • Q TO FIRE",y,Color("8adfff"))
  elif unit.buffs.has("parry"):_badge("PARRY %.1fs" % unit.buffs.parry.time,y,Color("b4d9ff"))
+
+func _draw_deadeye() -> void:
+ var charge=DeadeyeCue.channel(unit)
+ var gold=Color("ffd176")
+ if not charge.is_empty() and DeadeyeCue.visible(charge.target):
+  _badge("DEADEYE • %.1fs" % (ceilf(charge.time*10)/10.),-Constants.CHAMP_ART_HEIGHT-70,gold)
+  var direction=(charge.target.world_pos()-unit.world_pos()).normalized()
+  var muzzle=Vector2(0,-28)+direction*22
+  var end=charge.target.world_pos()-unit.world_pos()+Vector2(0,-28)
+  draw_line(muzzle,end,Color(0.02,0.02,0.03,.8),3.5,true)
+  draw_line(muzzle,end,Color(gold,.55+.3*sin(phase*18)),1.3,true)
+  draw_circle(muzzle,6+charge.progress*4,Color(gold,.18))
+  draw_arc(muzzle,10,phase*4,phase*4+TAU*charge.progress,32,gold,2,true)
+  draw_circle(muzzle,2+charge.progress*2,Color("fff4d9"))
+  draw_line(Vector2(-40,-Constants.CHAMP_ART_HEIGHT-62),Vector2(40,-Constants.CHAMP_ART_HEIGHT-62),Color(0,0,0,.9),5,true)
+  draw_line(Vector2(-40,-Constants.CHAMP_ART_HEIGHT-62),Vector2(-40+80*charge.progress,-Constants.CHAMP_ART_HEIGHT-62),gold,3,true)
+ var locks=DeadeyeCue.locks_on(unit)
+ if locks.is_empty():return
+ locks.sort_custom(func(a,b):return a.time<b.time)
+ var lock=locks[0]
+ var tint=Color("ff6e68") if is_instance_valid(GameState.player) and unit.team==GameState.player.team else gold
+ var center=Vector2(0,-28)
+ var radius=30-6*lock.progress
+ draw_arc(center,radius,0,TAU,48,Color(0,0,0,.9),4,true)
+ draw_arc(center,radius,-PI/2,-PI/2+TAU*(1-lock.progress),48,tint,2.5,true)
+ for side in range(4):
+  var d=Vector2.from_angle(side*PI/2+phase*.35)
+  draw_line(center+d*(radius-5),center+d*(radius+5),tint,2,true)
+ _badge("LOCKED • %.1fs" % (ceilf(lock.time*10)/10.),-Constants.CHAMP_ART_HEIGHT-(102 if not charge.is_empty() else 70),tint)

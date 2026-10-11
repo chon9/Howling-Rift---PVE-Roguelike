@@ -1,6 +1,6 @@
 extends Node
 
-const NAMES = ["bow", "blade", "magic", "fire", "frost", "light", "spirit", "impact", "hurt", "dash", "coin", "click", "level", "kill", "death", "victory", "defeat", "blade_ultimate", "fire_ultimate", "frost_ultimate", "magic_ultimate", "spirit_ultimate", "light_ultimate", "wind", "wind_ultimate", "fist", "fist_ultimate", "gun", "gun_ultimate"]
+const NAMES = ["bow", "blade", "magic", "fire", "frost", "light", "spirit", "impact", "hurt", "dash", "coin", "click", "level", "kill", "death", "victory", "defeat", "blade_ultimate", "fire_ultimate", "frost_ultimate", "magic_ultimate", "spirit_ultimate", "light_ultimate", "wind", "wind_ultimate", "fist", "fist_ultimate", "gun", "gun_ultimate", "deadeye_charge"]
 const ANNOUNCER_NAMES = ["first_blood","double_kill","triple_kill","quadra_kill","penta_kill","killing_spree","mega_kill","unstoppable","monster_kill","godlike","legendary","enemy_slain"]
 const SUPPLIED_CLIPS={"first_blood":"first_blood","double_kill":"double_kill","triple_kill":"triple_kill","quadra_kill":"maniac","penta_kill":"savage","killing_spree":"killing_spree","mega_kill":"mega_kill","unstoppable":"unstoppable","monster_kill":"monster_kill","godlike":"godlike","legendary":"legendary","enemy_slain":"enemy_slain"}
 var announcer_clips: Dictionary = {}
@@ -14,6 +14,8 @@ var counts: Dictionary = {}
 var enabled: bool = true
 var next_voice: int = 0
 var next_priority_voice: int = 0
+var charge_voices: Dictionary = {}
+var charge_serials: Dictionary = {}
 
 func _ready() -> void:
 	for key in NAMES: clips[key] = load("res://assets/audio/combat-v2/%s.wav" % key)
@@ -30,28 +32,28 @@ func _ready() -> void:
 
 func play(event: String, actor = null) -> void:
 	if not enabled or event == "minion_impact": return
-	var key = "impact" if event == "minion_impact" else event
+	var key = "gun_ultimate" if event=="deadeye_fire" else event
 	if is_instance_valid(actor):
 		var camera = get_viewport().get_camera_2d()
 		if camera != null and actor.world_pos().distance_to(camera.global_position) > 900 and actor != GameState.player: return
 		if event == "attack":
 			key = "fist" if actor.hero_key == "leesin" else ("blade" if actor.auto_type == "melee" else ("bow" if actor.hero_key == "ashe" else ("gun" if actor.hero_key == "jinx" else ("fire" if actor.hero_key == "annie" else "magic"))))
 		elif event in ["spell", "ultimate"]:
-			key = {"ashe":"frost", "annie":"fire", "garen":"blade", "lux":"light", "ahri":"spirit", "ezreal":"magic", "yasuo":"wind", "leesin":"fist", "zed":"blade", "jinx":"gun", "katarina":"blade", "kayle":"light"}.get(actor.hero_key, "magic")
-			if event == "ultimate": key += "_ultimate"
+			key = {"ashe":"frost", "annie":"fire", "garen":"blade", "lux":"light", "ahri":"spirit", "ezreal":"magic", "yasuo":"wind", "leesin":"fist", "zed":"blade", "jinx":"gun", "katarina":"blade", "kayle":"light", "caitlyn":"gun", "lucian":"gun", "sivir":"blade", "leona":"light", "blitzcrank":"fist", "renekton":"blade", "xinzhao":"blade", "riven":"blade", "fiora":"blade", "brand":"fire", "syndra":"spirit", "xerath":"light", "thresh":"spirit", "veigar":"spirit", "vayne":"bow", "darius":"blade", "malphite":"fist", "graves":"gun"}.get(actor.hero_key, "magic")
+			if event == "ultimate": key = "gun_ultimate" if key=="bow" else key+"_ultimate"
 	if not clips.has(key): return
 	var now = Time.get_ticks_msec()
 	var gap = 180 if event == "minion_impact" else (110 if event in ["attack", "impact", "hurt", "spell"] else 50)
 	var gate = "wave_impact" if event == "minion_impact" else key + (str(actor.get_instance_id()) if is_instance_valid(actor) else "")
 	if now - int(last_played.get(gate, -10000)) < gap: return
 	last_played[gate] = now
-	var important = event in ["ultimate", "victory", "defeat", "death", "level"]
+	var important = event in ["ultimate", "deadeye_fire", "victory", "defeat", "death", "level"]
 	var index = 8 + next_priority_voice if important else next_voice
 	var voice = voices[index]
 	if important: next_priority_voice = (next_priority_voice + 1) % 4
 	else: next_voice = (next_voice + 1) % 8
 	voice.stream = clips[key]
-	var mix = -25 if event == "minion_impact" else -15 if event in ["attack","impact","hurt"] else (-9 if event == "ultimate" else -14)
+	var mix = -25 if event == "minion_impact" else -15 if event in ["attack","impact","hurt"] else (-9 if event in ["ultimate","deadeye_fire"] else -14)
 	if event != "minion_impact" and is_instance_valid(actor) and actor.kind == "minion": mix -= 5
 	voice.set_meta("mix_volume",mix)
 	voice.volume_db = mix-5 if announcer_voice.playing else mix
@@ -72,6 +74,7 @@ func announce(key: String) -> void:
 	announcement_counts[key] = int(announcement_counts.get(key,0))+1
 
 func _process(_delta: float) -> void:
+	_update_charges()
 	for voice in voices:
 		if voice.has_meta("mix_volume"): voice.volume_db = float(voice.get_meta("mix_volume"))-(5 if announcer_voice.playing else 0)
 
@@ -80,6 +83,7 @@ func set_enabled(value: bool) -> void:
 	if not enabled:
 		announcer_voice.stop()
 		for voice in voices: voice.stop()
+		for voice in charge_voices.values(): voice.stop()
 
 func _exit_tree() -> void:
 	announcer_voice.stop()
@@ -89,3 +93,26 @@ func _exit_tree() -> void:
 		voice.stop()
 		voice.stream = null
 	clips.clear()
+
+func _update_charges() -> void:
+	var active={}
+	for actor in GameState.champions:
+		var cue=DeadeyeCue.channel(actor)
+		var camera=get_viewport().get_camera_2d()
+		if cue.is_empty() or not enabled or not DeadeyeCue.visible(actor) or (camera!=null and actor.world_pos().distance_to(camera.global_position)>900):continue
+		var id=actor.get_instance_id()
+		active[id]=true
+		if not charge_voices.has(id):
+			var voice=AudioStreamPlayer.new()
+			voice.stream=clips.deadeye_charge;voice.volume_db=-16
+			add_child(voice);charge_voices[id]=voice
+		var voice=charge_voices[id]
+		voice.stream_paused=GameState.paused
+		voice.volume_db=-21 if announcer_voice.playing else -16
+		if int(charge_serials.get(id,-1))!=cue.serial:
+			charge_serials[id]=cue.serial
+			counts.deadeye_charge=int(counts.get("deadeye_charge",0))+1
+			if DisplayServer.get_name()!="headless":voice.play(cue.duration-cue.time)
+	for id in charge_voices.keys():
+		if not active.has(id):
+			charge_voices[id].stop();charge_voices[id].queue_free();charge_voices.erase(id)

@@ -13,7 +13,7 @@ var previous_hp_max: float = -1.0
 var statuses: Array = []
 var primary_status: Dictionary = {}
 var fire_texture: Texture2D
-var font: Font = ThemeDB.fallback_font
+var font: Font = WorldTextFont.get_font()
 var badge_boxes: Dictionary = {}
 
 func _ready() -> void:

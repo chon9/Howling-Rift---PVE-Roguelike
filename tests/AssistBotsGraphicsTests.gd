@@ -103,7 +103,7 @@ func _ready() -> void:
  check(game.graphics_quality.screen.mouse_filter==Control.MOUSE_FILTER_IGNORE,"graphics never captures movement clicks")
  game.graphics_quality.apply()
  check(game.graphics_quality.screen.visible,"smoothing enabled for battle")
- Progression.edge_smoothing=false;game.graphics_quality.apply()
+ Progression.edge_smoothing=false;Progression.world_sharpness=0.;game.graphics_quality.apply()
  check(not game.graphics_quality.screen.visible,"performance option removes shader pass")
  if DisplayServer.get_name()!="headless":
   await visual_check()
@@ -120,7 +120,7 @@ func visual_check() -> void:
  var ui_layer=CanvasLayer.new();ui_layer.layer=11;game.add_child(ui_layer)
  var plaque=ColorRect.new();plaque.position=Vector2(600,90);plaque.size=Vector2(240,240);plaque.color=Color("bf903a");ui_layer.add_child(plaque)
  var caption=Label.new();caption.text="SHARP HUD 123";caption.position=Vector2(610,120);caption.add_theme_font_size_override("font_size",24);ui_layer.add_child(caption)
- Progression.edge_smoothing=false;game.graphics_quality.apply()
+ Progression.edge_smoothing=false;Progression.world_sharpness=0.;game.graphics_quality.apply()
  await RenderingServer.frame_post_draw
  var before=get_viewport().get_texture().get_image()
  Progression.vsync_enabled=true;Progression.edge_smoothing=true;game.graphics_quality.apply()

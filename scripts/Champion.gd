@@ -212,6 +212,7 @@ func setup(_team: int, _hero_key: String, _is_bot: bool, _name: String) -> void:
 func _build_children() -> void:
 	# Name
 	name_label = Label.new()
+	name_label.add_theme_font_override("font",WorldTextFont.get_font())
 	name_label.text = char_name
 	name_label.add_theme_font_size_override("font_size", 12)
 	var name_col: Color
@@ -223,7 +224,7 @@ func _build_children() -> void:
 		name_col = Color(1.0, 0.6, 0.6)
 	name_label.add_theme_color_override("font_color", name_col)
 	name_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	name_label.add_theme_constant_override("outline_size", 4)
+	name_label.add_theme_constant_override("outline_size", 2)
 	name_label.position = Vector2(-40, -Constants.CHAMP_ART_HEIGHT-33)
 	name_label.size = Vector2(80, 14)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

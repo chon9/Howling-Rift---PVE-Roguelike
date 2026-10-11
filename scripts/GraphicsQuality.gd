@@ -1,6 +1,6 @@
 class_name GraphicsQuality
 extends CanvasLayer
-# A single world-only canvas pass. HUD, menus and cursor render above layer 1.
+# A single native-resolution world-only canvas pass. HUD, menus and cursor render above layer 1.
 var screen: ColorRect
 func _ready() -> void:
  name = "GraphicsQuality"
@@ -15,9 +15,11 @@ func _ready() -> void:
  add_child(screen)
  apply()
 func _process(_delta: float) -> void:
- screen.visible = Progression.edge_smoothing and GameState.started
+ screen.visible = (Progression.edge_smoothing or Progression.world_sharpness>0.) and GameState.started
 func apply() -> void:
- screen.visible = Progression.edge_smoothing and GameState.started
+ screen.material.set_shader_parameter("smoothing",.45 if Progression.edge_smoothing else 0.)
+ screen.material.set_shader_parameter("sharpness",Progression.world_sharpness)
+ screen.visible = (Progression.edge_smoothing or Progression.world_sharpness>0.) and GameState.started
  # Headless checks don't render; don't throttle simulation tests.
  if DisplayServer.get_name() != "headless":
   Engine.max_fps = Progression.frame_limit
@@ -26,11 +28,19 @@ func apply() -> void:
 static func settings_row(parent: Control,quality: CanvasLayer) -> void:
  var smooth = CheckButton.new()
  smooth.name = "EdgeSmoothing"
- smooth.text = "WORLD EDGE SMOOTHING (FXAA)"
+ smooth.text = "LIGHT EDGE SMOOTHING"
  smooth.button_pressed = Progression.edge_smoothing
- smooth.tooltip_text = "Smooths sprite and spell edges at native resolution. HUD text stays sharp. One extra GPU pass; turn off for maximum FPS. FSR/DLSS do not apply to this 2D renderer."
+ smooth.tooltip_text = "Light smoothing preserves fine sprite details and overhead text. Rendering stays at your display resolution. To remove the extra GPU pass, switch this off and set world sharpness to 0%."
  smooth.toggled.connect(func(enabled): Progression.edge_smoothing = enabled; quality.apply(); Progression.save_profile())
  parent.add_child(smooth)
+ var clarity_row=HBoxContainer.new()
+ clarity_row.add_child(RiftMenus.label("WORLD SHARPNESS",20))
+ var sharp=HSlider.new();sharp.name="WorldSharpness";sharp.custom_minimum_size=Vector2(220,36);sharp.min_value=0.;sharp.max_value=100.;sharp.step=5.;sharp.value=Progression.world_sharpness*100.
+ sharp.tooltip_text="Restores fine world detail without changing HUD text. 35% is the balanced default. 0% disables sharpening. Excessive sharpening can emphasize texture grain."
+ var amount=RiftMenus.label("%d%%" % sharp.value,20);amount.custom_minimum_size=Vector2(62,36)
+ sharp.value_changed.connect(func(value):Progression.world_sharpness=value/100.;amount.text="%d%%" % value;quality.apply();Progression.save_profile())
+ clarity_row.add_child(sharp);clarity_row.add_child(amount);parent.add_child(clarity_row)
+
  var vsync = CheckButton.new()
  vsync.name = "VSync"
  vsync.text = "V-SYNC (PREVENT SCREEN TEARING)"

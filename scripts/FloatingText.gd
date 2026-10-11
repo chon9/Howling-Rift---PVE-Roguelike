@@ -12,6 +12,7 @@ func setup(pos: Vector2, text: String, color: Color, big: bool = false) -> void:
 	start_y = pos.y
 	z_index = Constants.Z_FLOAT
 	label = Label.new()
+	label.add_theme_font_override("font",WorldTextFont.get_font())
 	label.text = text
 	label.add_theme_font_size_override("font_size", 22 if big else 14)
 	label.add_theme_color_override("font_color", color)

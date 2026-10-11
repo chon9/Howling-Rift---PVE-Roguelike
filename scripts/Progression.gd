@@ -13,6 +13,7 @@ var music_volume: float = 0.28
 var smart_cast: bool = true
 var allied_bots: bool = true
 var edge_smoothing: bool = true
+var world_sharpness: float = 0.35
 var frame_limit: int = 120
 var vsync_enabled: bool = true
 var fullscreen_enabled: bool = false
@@ -54,6 +55,7 @@ func load_profile() -> void:
 	allied_bots = bool(file.get_value("match","allied_bots",true))
 	fullscreen_enabled = bool(file.get_value("graphics","fullscreen",false))
 	edge_smoothing = bool(file.get_value("graphics","edge_smoothing",true))
+	world_sharpness = clampf(float(file.get_value("graphics","world_sharpness",0.35)),0.,1.)
 	vsync_enabled = bool(file.get_value("graphics","vsync",true))
 	frame_limit = int(file.get_value("graphics","frame_limit",120))
 	if frame_limit not in [0,60,120,144,240]: frame_limit = 120
@@ -86,6 +88,7 @@ func save_profile() -> bool:
 	file.set_value("controls","smart_cast",smart_cast)
 	file.set_value("match","allied_bots",allied_bots)
 	file.set_value("graphics","edge_smoothing",edge_smoothing)
+	file.set_value("graphics","world_sharpness",world_sharpness)
 	file.set_value("graphics","frame_limit",frame_limit)
 	file.set_value("graphics","vsync",vsync_enabled)
 	file.set_value("graphics","fullscreen",fullscreen_enabled)

@@ -6,6 +6,7 @@ var failures=0
 var completed={}
 var released=false
 var single=false
+var partial=false
 func check(ok: bool,message: String) -> void:
  checks+=1
  if not ok:failures+=1;push_error("BUILD NETWORK "+role+": "+message)
@@ -21,9 +22,10 @@ func _process(delta: float) -> void:
  if LanSession.is_host() and GameState.running:
   GameState.time+=delta;LanSession.replicate(delta)
 func record(key: String) -> Dictionary:
- return BuildStealer.validate({"hero":key,"name":"Previous Champion","stage":14,"kills":20,"deaths":2,"assists":4,"won":true,"items":["berserker_greaves","infinity_edge","bloodthirster","phantom_dancer","warmog","lord_dominik"] if key=="ashe" else ["sorcerer_shoes","rabadon","void_staff","ludens","banshee","warmog"],"augments":[{"level":4,"index":0 if key=="ashe" else 1,"stats":{"bonus_as":.3} if key=="ashe" else {"bonus_ap":32.}}],"spells":["heal","ghost"],"skill_order":[{"index":0,"rank":2}],"elixirs":{}})
+ return BuildStealer.validate({"hero":key,"name":"Previous Champion","stage":14,"kills":20,"deaths":2,"assists":4,"won":true,"items":["boots"] if partial else ["berserker_greaves","infinity_edge","bloodthirster","phantom_dancer","warmog","lord_dominik"] if key=="ashe" else ["sorcerer_shoes","rabadon","void_staff","ludens","banshee","warmog"],"augments":[{"level":4,"index":0 if key=="ashe" else 1,"stats":{"bonus_as":.3} if key=="ashe" else {"bonus_ap":32.}}],"spells":["heal","ghost"],"skill_order":[{"index":0,"rank":2}],"elixirs":{}})
 func _ready() -> void:
  role=OS.get_cmdline_user_args()[0];single=OS.get_cmdline_user_args().has("--single-hero");Progression.persistent=false;Progression.fullscreen_enabled=false;Progression.difficulty=7;Progression.build_records.clear()
+ partial=OS.get_cmdline_user_args().has("--partial-build")
  game=load("res://scripts/Main.gd").new();add_child(game);game.set_process(false)
  if role=="host":
   Progression.build_records=[record("ashe"),record("lux")]
@@ -44,6 +46,16 @@ func _ready() -> void:
    bot.level=4;bot.skill_points=1;bot._bot_spend_points();game.lane_augments.on_level_up(bot)
   check(await until(func():return completed.size()==2),"both guests see learned builds and stats")
   completed.clear()
+  if partial:
+   for bot in echoes:
+    for attempt in range(30):
+     if not bot._bot_buy_next():break
+    for level in [5,6]:
+     bot.level=level;bot.skill_points=1;bot._bot_spend_points();game.lane_augments.on_level_up(bot)
+    check(bot.stolen_items_complete and not bot.inventory.has("boots") and bot.inventory.count("")<=2 and not bot.consumable_counts.is_empty(),"host continues original items and consumables after saved boots")
+    check(bot.augment_history.size()==2 and bot.skill_history.size()==3,"host continues normal skill ranks and level-up upgrades")
+   check(await until(func():return completed.size()==2),"both guests see original progression after the saved path ends")
+   completed.clear()
   for c in GameState.champions:
    if c.owner_peer>0:
     c.kills=15;c.deaths=2;c.inventory=["long_sword","","","","",""];c.purchase_history=["long_sword"]
@@ -68,6 +80,9 @@ func _ready() -> void:
    check(bot.run_bonus==upgrade.stats,"exact recorded roll reaches guest")
    check(bot.permanent_bonus.is_empty() and bot.stolen_blueprint.stage==14 and is_equal_approx(bot.difficulty_stats.health,Progression.scaling(7).health),"current difficulty applies, source stage is metadata")
   done.rpc_id(1)
+  if partial:
+   check(await until(func():return echoes.all(func(c):return c.level==6 and c.skill_ranks.reduce(func(total,value):return total+value,0)==6 and c.run_bonus!=c.stolen_blueprint.augments[0].stats and not c.inventory.has("boots") and c.inventory.count("")<=2 and not c.consumable_counts.is_empty())),"continued original items, skill ranks, upgrades and elixirs synchronize")
+   done.rpc_id(1)
   check(await until(func():return not GameState.running),"final result arrives")
   check(Progression.build_records.is_empty(),"guest never writes host's learned builds to its own archive")
   check(game.hud.get_node("HudRoot").end_stats.text.contains("3 qualifying"),"host learning report reaches guests")

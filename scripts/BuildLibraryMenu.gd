@@ -34,5 +34,6 @@ static func show(game) -> void:
   var elixir_names=[]
   for id in record.elixirs:elixir_names.append("%s ×%d" % [ItemData.ITEMS[id].name,record.elixirs[id]])
   var detail=RiftMenus.label(" • ".join(upgrade_names)+("\n"+" • ".join(elixir_names) if not elixir_names.is_empty() else ""),17);detail.horizontal_alignment=HORIZONTAL_ALIGNMENT_LEFT;detail.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;detail.tooltip_text="\n".join(record.augments.map(func(upgrade):return "Lv%d %s: %s" % [upgrade.level,upgrade.name,BuildStealer.stats_label(upgrade.stats)]));detail.mouse_filter=Control.MOUSE_FILTER_STOP;content.add_child(detail)
+ column.add_child(RiftMenus.label("Saved path first, then normal hero skills, upgrades and item build. Full loadouts continue into stat elixirs.",17))
  column.add_child(RiftMenus.label("Score: difficulty reward multiplier × (100 × kills + 15 × assists) / max(1, deaths), plus 500 for a victory.",16))
  column.add_child(RiftMenus.button("BACK",func():shade.queue_free()))

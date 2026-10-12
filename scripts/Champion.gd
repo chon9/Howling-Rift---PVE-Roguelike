@@ -103,6 +103,7 @@ var bonus_hp_regen: float = 0.0      # extra HP regen/sec
 # Bot auto-buy state
 var stolen_blueprint: Dictionary = {}
 var stolen_skill_cursor: int = 0
+var stolen_items_complete: bool = false
 var purchase_history: Array = []
 var augment_history: Array = []
 var skill_history: Array = []
@@ -539,11 +540,23 @@ func _bot_auto_buy(delta: float) -> void:
 
 func _bot_buy_next() -> bool:
 	if not stolen_blueprint.is_empty():return BuildStealer.buy_next(self)
+	return _bot_buy_original()
+
+func _bot_buy_original(continuation: bool=false) -> bool:
 	var build = ItemData.BUILD_ORDERS.get(hero_key, [])
+	if continuation:
+		# Keep following this hero's original plan after the saved purchases.
+		# Owned upgrades cover their components. Full slots or alternate boots
+		# must not prevent later recipe upgrades or late-game consumables.
+		for id in build:
+			if inventory.any(func(owned):return owned!="" and (owned==id or BuildStealer.contains_component(owned,id))):continue
+			var plan=ItemData.purchase_plan(id,inventory,consumable_counts)
+			if not plan.valid:continue
+			return try_buy_item(id)
+		return BuildStealer.buy_training(self)
 	if bot_build_idx >= build.size():
 		return _bot_buy_training()
 	var next_id = build[bot_build_idx]
-	var it = ItemData.ITEMS[next_id]
 	if inventory.has(next_id):
 		bot_build_idx += 1
 		return true

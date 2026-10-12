@@ -89,7 +89,7 @@ func _ready() -> void:
   bot.skill_points=1;bot.level=4;bot._bot_spend_points()
   if not entry.record.skill_order.is_empty():check(bot.skill_ranks[0]==2,"saved skill path spends legal point")
  # Small budgets buy useful recipe components rather than waiting empty-handed.
- var test_bot=GameState.champions[3];test_bot.is_bot=true;test_bot.inventory=["","","","","",""];test_bot.consumable_counts.clear();test_bot.stolen_blueprint=BuildStealer.validate(raw("ashe",3,15,0,["infinity_edge"]));test_bot.gold=400
+ var test_bot=GameState.champions[3];test_bot.is_bot=true;test_bot.inventory=["","","","","",""];test_bot.consumable_counts.clear();test_bot.stolen_items_complete=false;test_bot.stolen_blueprint=BuildStealer.validate(raw("ashe",3,15,0,["infinity_edge"]));test_bot.gold=400
  check(test_bot._bot_buy_next() and test_bot.inventory.has("long_sword") and test_bot.gold==50,"affordable component starts the stolen build")
  check(not test_bot._bot_buy_next() and test_bot.gold==50,"no free purchase when cash runs out")
  # Every existing recommended six-slot build can finish, even on a crowded inventory.
@@ -102,7 +102,7 @@ func _ready() -> void:
   targets=targets.slice(-6)
   var blueprint=BuildStealer.validate(raw(key,3,20,2,targets))
   check(not blueprint.is_empty(),"recommended goals validate: "+key)
-  test_bot.stolen_blueprint=blueprint;test_bot.inventory=["","","","","",""];test_bot.gold=500000;test_bot.consumable_counts.clear()
+  test_bot.stolen_items_complete=false;test_bot.stolen_blueprint=blueprint;test_bot.inventory=["","","","","",""];test_bot.gold=500000;test_bot.consumable_counts.clear()
   var attempts=0
   while attempts<100 and not blueprint.items.all(func(id):return test_bot.inventory.count(id)>=blueprint.items.count(id)):
    if not test_bot._bot_buy_next():break
@@ -110,12 +110,12 @@ func _ready() -> void:
   check(blueprint.items.all(func(id):return test_bot.inventory.count(id)>=blueprint.items.count(id)),"full stolen plan completes: "+key)
  # Components intentionally retained in the final inventory are purchased after their parents.
  var mixed=BuildStealer.validate(raw("ashe",1,15,0,["long_sword","infinity_edge","warmog","thornmail","berserker_greaves","bloodthirster"]))
- test_bot.stolen_blueprint=mixed;test_bot.inventory=["","","","","",""];test_bot.gold=50000
+ test_bot.stolen_items_complete=false;test_bot.stolen_blueprint=mixed;test_bot.inventory=["","","","","",""];test_bot.gold=50000
  for attempt in range(30):
   if mixed.items.all(func(id):return test_bot.inventory.count(id)>=mixed.items.count(id)):break
   if not test_bot._bot_buy_next():break
  check(mixed.items.all(func(id):return test_bot.inventory.count(id)>=mixed.items.count(id)),"final component and its parent both survive the completed loadout")
- test_bot.stolen_blueprint=config.stolen_builds.filter(func(entry):return entry.slot==3)[0].record if config.stolen_builds.any(func(entry):return entry.slot==3) else {}
+ test_bot.stolen_items_complete=false;test_bot.stolen_blueprint=config.stolen_builds.filter(func(entry):return entry.slot==3)[0].record if config.stolen_builds.any(func(entry):return entry.slot==3) else {}
  var ordinary=GameState.champions[normal]
  check(ordinary.stolen_blueprint.is_empty(),"one bot keeps ordinary progression")
  var before=Progression.build_records.duplicate(true);var pvp=config.duplicate(true);pvp.mode="pvp";BuildStealer.assign(pvp)
@@ -145,7 +145,7 @@ func _ready() -> void:
  game._return_to_main_menu();game.set_process(false);BuildLibraryMenu.show(game)
  check(game.menu.has_node("BuildLibrary") and game.menu.find_child("BuildLibraryAction",true,false)!=null,"readable archive browser is on main menu")
  if DisplayServer.get_name()!="headless":
-  await RenderingServer.frame_post_draw;get_viewport().get_texture().get_image().save_png("res://tests/build-library-v068.png")
+  await RenderingServer.frame_post_draw;get_viewport().get_texture().get_image().save_png("res://tests/build-library-v069.png")
  game.queue_free();GameState.reset()
  for frame in range(4):await get_tree().process_frame
  print("BUILD STEALER: %d checks, %d failures" % [checks,failures]);get_tree().quit(0 if failures==0 else 1)

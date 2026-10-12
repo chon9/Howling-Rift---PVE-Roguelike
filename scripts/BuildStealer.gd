@@ -116,7 +116,7 @@ static func attach(c,record: Dictionary,echo: int) -> void:
  if GameState.is_pvp() or not c.is_bot or c.team!=Constants.RED:return
  var clean=validate(record)
  if clean.is_empty() or clean.hero!=c.hero_key:return
- c.stolen_blueprint=clean;c.stolen_skill_cursor=0;c.summoner_spells=clean.spells.duplicate()
+ c.stolen_blueprint=clean;c.stolen_skill_cursor=0;c.stolen_items_complete=false;c.summoner_spells=clean.spells.duplicate()
  c.char_name="Echo %d • N%d" % [echo,clean.stage];c.name_label.text=c.char_name
 static func contains_component(parent: String,child: String,depth: int=0) -> bool:
  if depth>8:return false
@@ -140,6 +140,7 @@ static func missing_components(id: String,working: Array,depth: int=0) -> Array:
  for child in ItemData.ITEMS[id].recipe:result.append_array(missing_components(child,working,depth+1))
  return result
 static func buy_next(c) -> bool:
+ if c.stolen_items_complete:return c._bot_buy_original(true)
  var needed={}
  for id in c.stolen_blueprint.items:
   needed[id]=int(needed.get(id,0))+1
@@ -151,6 +152,11 @@ static func buy_next(c) -> bool:
    var plan=ItemData.purchase_plan(component,c.inventory,c.consumable_counts)
    if plan.valid and c.gold>=plan.cost and c.try_buy_item(component):return true
   return false
+ # A component from the stolen loadout may be upgraded by the original AI
+ # plan. Latch completion so that it is never bought again as a saved goal.
+ c.stolen_items_complete=true
+ return c._bot_buy_original(true)
+static func buy_training(c) -> bool:
  var choices=[]
  for id in c.stolen_blueprint.elixirs:
   if int(c.consumable_counts.get(id,0))<int(c.stolen_blueprint.elixirs[id]):choices.append(id)
@@ -173,4 +179,5 @@ static func tooltip(record: Dictionary) -> String:
  return "STOLEN BUILD • %s
 N%d • Score %d • %d / %d / %d
 %s
-Buys with earned gold. Copied upgrades unlock at their level milestones." % [record.name,record.stage,record.score,record.kills,record.deaths,record.assists,", ".join(names)]
+Buys with earned gold. Copied upgrades unlock at their level milestones.
+After the saved path ends, normal hero skills, upgrades and purchases continue." % [record.name,record.stage,record.score,record.kills,record.deaths,record.assists,", ".join(names)]

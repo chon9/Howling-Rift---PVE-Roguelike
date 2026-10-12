@@ -77,7 +77,7 @@ func run() -> void:
    check(passives.DATA.has(hero),"exported passive metadata "+hero)
    var portrait=portraits.texture_for(hero)
    check(portrait.filter_clip and is_equal_approx(portrait.get_width(),portrait.get_height()),"exported square portrait "+hero)
-  check(load("res://scripts/SteamSession.gd").PROTOCOL=="12","export uses current network protocol")
+  check(load("res://scripts/SteamSession.gd").PROTOCOL=="13","export uses current network protocol")
   game.spawn_aoe(state.player,state.player.world_pos(),{"effect_id":"xerath_q","radius":250.,"footprint_kind":"capsule","footprint_width":30.,"effect_dir":Vector2.DOWN})
   var beam_snapshot=load("res://scripts/LanSnapshot.gd").encode().aoes.back()
   check(beam_snapshot.footprint_kind=="capsule" and beam_snapshot.footprint_width==30. and beam_snapshot.effect_dir==Vector2.DOWN,"exported beam snapshot preserves its collision footprint")
@@ -186,7 +186,7 @@ func run() -> void:
  var support_art=load("res://scripts/SupportArt.gd");var support_kit_art=load("res://scripts/KitEffectArt.gd")
  for id in support_art.ROWS:check(support_kit_art.has_effect(id) and support_kit_art.region(id,3).has_area() and support_kit_art.sheet(id)!=null,"exported support spell/attack art "+id)
  check(load("res://scripts/LanSnapshot.gd").encode().champs[0].has("last_order_sequence"),"exported snapshots acknowledge predicted movement")
- check(ProjectSettings.get_setting("application/config/version")=="0.6.8","export has correct release version")
+ check(ProjectSettings.get_setting("application/config/version")=="0.6.9","export has correct release version")
  var stealer=load("res://scripts/BuildStealer.gd")
  state.match_mode="pve";healer.kills=15;healer.deaths=3;healer.owner_peer=1;healer.is_bot=false
  var blueprint=stealer.capture(healer,9,true)
@@ -196,6 +196,16 @@ func run() -> void:
  check(echo_config.stolen_builds.size()==1 and distinct(echo_config.red).size()==3,"export assigns one Echo for one learned hero without duplicate enemies")
  var improved=blueprint.duplicate(true);improved.stage=99
  check(stealer.ranked([blueprint,improved]).size()==1 and stealer.ranked([blueprint,improved])[0].stage==99,"export keeps the better difficulty-weighted score per hero")
+ var continuation=state.champions[3];var items=root.get_node("ItemData");var original=items.BUILD_ORDERS[continuation.hero_key]
+ var partial=stealer.validate({"hero":continuation.hero_key,"stage":9,"kills":20,"deaths":2,"items":[original[0]],"skill_order":[{"index":0,"rank":2}]})
+ continuation.is_bot=true;continuation.inventory=["","","","","",""];continuation.purchase_history.clear();continuation.gold=50000
+ stealer.attach(continuation,partial,1)
+ check(continuation._bot_buy_next() and continuation.purchase_history==[original[0]],"export follows the saved item first")
+ check(continuation._bot_buy_next() and continuation.stolen_items_complete and continuation.purchase_history.size()==2,"export resumes original hero item purchases")
+ continuation.skill_ranks=[1,1,1,0];continuation.level=4;continuation.skill_points=1;continuation._bot_spend_points()
+ check(continuation.skill_ranks[0]==2,"export follows recorded skill rank first")
+ continuation.level=5;continuation.skill_points=1;continuation._bot_spend_points()
+ check(continuation.skill_ranks.reduce(func(total,value):return total+value,0)==5 and continuation.skill_points==0,"export keeps spending points after saved skill path ends")
  var library=load("res://scripts/BuildLibraryMenu.gd")
  game._return_to_main_menu();library.show(game)
  check(game.menu.has_node("BuildLibrary"),"exported archive browser is available")

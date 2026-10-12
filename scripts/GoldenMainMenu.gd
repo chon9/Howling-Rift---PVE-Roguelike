@@ -156,6 +156,9 @@ func _ready() -> void:
    if error==OK:game._show_lobby()
    else:game.menu_status.text=error_string(error))
   reconnect.name="ReconnectPvp"
+ var library=action("BUILD STEALER • %d / 10" % Progression.build_records.size(),Vector2(1440,636),Vector2(370,56),func():BuildLibraryMenu.show(game))
+ library.name="BuildLibraryAction";library.add_theme_font_size_override("font_size",20)
+ text("15+ kills / K-D ≥ 5 saves your build",Vector2(1440,704),16,MUTED,370)
  Progression.refresh_daily()
  var daily_card=Panel.new();daily_card.position=Vector2(1440,245);daily_card.size=Vector2(370,62)
  daily_card.add_theme_stylebox_override("panel",box(Color(.025,.04,.065,.90),Color("6e5d3b")))

@@ -61,6 +61,7 @@ var graphics_quality: CanvasLayer
 var kill_announcer
 var match_loader: MatchLoading
 var match_load_serial: int = 0
+var archive_report: String = ""
 var force_match_loading: bool = false # Native loading path can also run in headless integration tests.
 
 func _ready() -> void:
@@ -525,8 +526,10 @@ func _resolve_match_roster(player_hero: String) -> Dictionary:
 	var hero_keys=ChampionData.CHAMPIONS.keys();hero_keys.shuffle()
 	var others=hero_keys.filter(func(h):return h!=player_hero)
 	var blue=network_config.get("blue",[player_hero,others[0],others[1]]).duplicate()
-	var red=network_config.get("red",MatchRoster.enemy_team(blue)).duplicate()
-	return {"blue":blue,"red":red}
+	var red=network_config.red.duplicate() if network_config.has("red") else MatchRoster.enemy_team(blue)
+	var roster={"blue":blue,"red":red,"mode":str(network_config.get("mode","pve")),"stolen_builds":network_config.get("stolen_builds",[]).duplicate(true)}
+	if network_config.is_empty():BuildStealer.assign(roster)
+	return roster
 
 func _launch_game(hero_key: String) -> void:
 	if GameState.started or is_instance_valid(match_loader):return
@@ -573,6 +576,7 @@ func _start_game(hero_key: String,roster: Dictionary={},activate: bool=true) -> 
 # =============================================================================
 func _build_match(player_hero: String,roster: Dictionary={},activate: bool=true) -> void:
 	GameState.reset()
+	archive_report=""
 	GameState.paused=not activate
 	GameState.match_mode=str(network_config.get("mode","pve"))
 	GameState.team_size=int(network_config.get("team_size",3))
@@ -605,6 +609,9 @@ func _build_match(player_hero: String,roster: Dictionary={},activate: bool=true)
 			var hero=(blue_pick if team==BLUE else red_pick)[i]
 			c.setup(team,hero,owner==0,"You" if is_player else config.get("name",["Ally","Buddy","Vanguard"][i] if team==BLUE else ["Rival","Villain","Nemesis"][i]))
 			c.owner_peer=owner
+			for echo in range(roster.get("stolen_builds",[]).size()):
+				var borrowed=roster.stolen_builds[echo]
+				if int(borrowed.slot)==team*3+i:BuildStealer.attach(c,borrowed.record,echo+1)
 			if not config.is_empty():
 				c.permanent_bonus={} if GameState.is_pvp() else config.get("bonuses",{}).duplicate()
 				c.summoner_spells=config.spells.duplicate();c._apply_items()
@@ -614,6 +621,7 @@ func _build_match(player_hero: String,roster: Dictionary={},activate: bool=true)
 	for c in GameState.champions:
 		c.level = 3
 		c.skill_ranks = [1, 1, 1, 0]
+		c.skill_history.clear()
 		c.skill_points = 0
 		if c == GameState.player: c.summoner_spells = selected_summoners.duplicate()
 		c._recompute_stats()
@@ -1400,15 +1408,17 @@ func _end_game(winner_team: int) -> void:
 	_cancel_pending_skill()
 	play_sfx("victory" if winner_team == GameState.player.team else "defeat")
 	sound_fx.announce("victory_voice" if winner_team == GameState.player.team else "defeat_voice")
-	LanSession.finish(winner_team)
 	GameState.running = false
 	award_match_credits(winner_team == GameState.player.team, GameState.player.kills)
+	if not LanSession.is_client():archive_report=BuildStealer.record_match(winner_team)
+	LanSession.finish(winner_team)
 	hud.get_node("HudRoot").show_end_screen(winner_team == GameState.player.team)
 	if GameState.is_pvp():
 		hud.get_node("HudRoot").end_stats.text+="\n%dv%d PVP • %s TEAM\nEqual starting stats • PvE progression unaffected" % [GameState.team_size,GameState.team_size,"BLUE" if GameState.player.team==BLUE else "RED"]
 	else:
 		hud.get_node("HudRoot").end_stats.text += "\nN%d  •  +%d permanent credits  •  Balance: %d\n%s" % [GameState.difficulty, Progression.last_reward, Progression.credits, Progression.save_error]
 		hud.get_node("HudRoot").end_stats.text += "\n"+Progression.drop_summary()
+		if not archive_report.is_empty():hud.get_node("HudRoot").end_stats.text+="\n"+archive_report
 	camera_shake(1.0, 12.0)
 	if winner_team == GameState.player.team:
 		camera_flash(1.2, Color(1.0, 0.86, 0.52))
@@ -1596,6 +1606,8 @@ func _input(event: InputEvent) -> void:
 			return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
 		if _close_confirmation(): get_viewport().set_input_as_handled(); return
+		if is_instance_valid(menu) and menu.has_node("BuildLibrary"):
+			menu.get_node("BuildLibrary").queue_free();get_viewport().set_input_as_handled();return
 		if not GameState.started:
 			if menu_page == "heroes": _back_from_heroes()
 			elif menu_page in ["upgrades","equipment","pvp"]: _show_main_menu()

@@ -77,7 +77,7 @@ func run() -> void:
    check(passives.DATA.has(hero),"exported passive metadata "+hero)
    var portrait=portraits.texture_for(hero)
    check(portrait.filter_clip and is_equal_approx(portrait.get_width(),portrait.get_height()),"exported square portrait "+hero)
-  check(load("res://scripts/SteamSession.gd").PROTOCOL=="10","export uses PvP network protocol")
+  check(load("res://scripts/SteamSession.gd").PROTOCOL=="11","export uses PvP network protocol")
   game.spawn_aoe(state.player,state.player.world_pos(),{"effect_id":"xerath_q","radius":250.,"footprint_kind":"capsule","footprint_width":30.,"effect_dir":Vector2.DOWN})
   var beam_snapshot=load("res://scripts/LanSnapshot.gd").encode().aoes.back()
   check(beam_snapshot.footprint_kind=="capsule" and beam_snapshot.footprint_width==30. and beam_snapshot.effect_dir==Vector2.DOWN,"exported beam snapshot preserves its collision footprint")
@@ -186,7 +186,17 @@ func run() -> void:
  var support_art=load("res://scripts/SupportArt.gd");var support_kit_art=load("res://scripts/KitEffectArt.gd")
  for id in support_art.ROWS:check(support_kit_art.has_effect(id) and support_kit_art.region(id,3).has_area() and support_kit_art.sheet(id)!=null,"exported support spell/attack art "+id)
  check(load("res://scripts/LanSnapshot.gd").encode().champs[0].has("last_order_sequence"),"exported snapshots acknowledge predicted movement")
- check(ProjectSettings.get_setting("application/config/version")=="0.6.6","export has correct release version")
+ check(ProjectSettings.get_setting("application/config/version")=="0.6.7","export has correct release version")
+ var stealer=load("res://scripts/BuildStealer.gd")
+ state.match_mode="pve";healer.kills=15;healer.deaths=3;healer.owner_peer=1;healer.is_bot=false
+ var blueprint=stealer.capture(healer,9,true)
+ check(not blueprint.is_empty() and blueprint.stage==9,"export captures a dominant human build")
+ profile.build_records=[blueprint]
+ var echo_config={"mode":"pve","blue":["ashe","lux","garen"],"red":["leesin","thresh","vayne"]};stealer.assign(echo_config)
+ check(echo_config.stolen_builds.size()==2,"export assigns two Echo builds")
+ var library=load("res://scripts/BuildLibraryMenu.gd")
+ game._return_to_main_menu();library.show(game)
+ check(game.menu.has_node("BuildLibrary"),"exported archive browser is available")
  game.queue_free();await process_frame
  print("STEAM EXPORT SMOKE: ",failures," failures")
  quit(1 if failures else 0)

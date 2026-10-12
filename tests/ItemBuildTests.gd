@@ -22,7 +22,7 @@ func prepare(ours: Array=[],theirs: Array=[]) -> void:
 func _ready() -> void:
  await get_tree().process_frame
  GameState.reset();Progression.persistent=false;Progression.difficulty=1;Progression.levels.clear()
- game=load("res://scripts/Main.gd").new();add_child(game);game.set_process(false);game._start_game("garen")
+ game=load("res://scripts/Main.gd").new();add_child(game);game.set_process(false);game.network_config={"blue":["garen","ashe","lux"],"red":["garen","ashe","lux"],"players":[{"peer":1,"slot":0,"name":"Test","spells":["flash","ignite"],"bonuses":{}}]};game._start_game("garen")
  p=GameState.player;enemy=GameState.champions[3]
  check(ItemData.ORDER.size()==84 and ItemData.ITEMS.size()==84,"shop contains eighty-four unique items")
  for id in TankADItems.KEYS:

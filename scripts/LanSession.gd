@@ -259,6 +259,7 @@ func start_match() -> void:
  if not can_start():return
  var config=MatchRules.build_config(players,rules,Progression.difficulty,Progression.allied_bots)
  for entry in config.players:players[entry.peer]=entry.duplicate(true)
+ BuildStealer.assign(config)
  config["loading_id"]=Time.get_ticks_msec()
  match_config=config.duplicate(true)
  match_started=true
@@ -365,7 +366,7 @@ func fill_choices(draft: Dictionary,c) -> void:
 func choose_draft(c,index: int) -> void:
  var draft = draft_states.get(c.owner_peer,{})
  if draft.is_empty() or draft.pending.is_empty() or not draft.choices.has(index): return
- main.lane_augments.apply_augment(c,index,draft.offers.get(index,{}))
+ main.lane_augments.apply_augment(c,index,draft.offers.get(index,{}),int(draft.pending[0]))
  draft.picked.append(main.lane_augments.AUGMENTS[index].name)
  draft.pending.pop_front()
  draft.choices.clear()
@@ -494,7 +495,8 @@ func finish(winner: int) -> void:
  if is_host():
   disconnected.clear()
   for peer in registered_peers():
-   _finish.rpc_id(peer,winner,LanSnapshot.encode())
+   var packet=LanSnapshot.encode();packet["archive_report"]=main.archive_report
+   _finish.rpc_id(peer,winner,packet)
 @rpc("authority","call_remote","reliable",1)
 func _finish(winner: int, packet: Dictionary) -> void:
  if not is_client():return
@@ -502,6 +504,7 @@ func _finish(winner: int, packet: Dictionary) -> void:
   pending_finish={"winner":winner,"packet":packet.duplicate(true)};return
  last_state_time = packet.time
  LanSnapshot.apply(packet,self)
+ main.archive_report=str(packet.get("archive_report",""))
  main._end_game(winner)
 
 func can_reconnect() -> bool:

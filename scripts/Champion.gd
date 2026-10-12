@@ -101,6 +101,11 @@ var bonus_mp_regen: float = 0.0
 var last_order_sequence: int = 0
 var bonus_hp_regen: float = 0.0      # extra HP regen/sec
 # Bot auto-buy state
+var stolen_blueprint: Dictionary = {}
+var stolen_skill_cursor: int = 0
+var purchase_history: Array = []
+var augment_history: Array = []
+var skill_history: Array = []
 var bot_build_idx: int = 0
 var bot_buy_t: float = 0.0
 
@@ -503,6 +508,9 @@ func try_buy_item(id: String) -> bool:
 			consumable_bonus[stat] = consumable_bonus.get(stat,0.0)+ItemData.ITEMS[id].stats[stat]
 	else:
 		next_inventory[plan.slot] = id
+	if not ItemData.ITEMS[id].get("consumable",false):
+		purchase_history.append(id)
+		if purchase_history.size()>128:purchase_history.pop_front()
 	gold -= plan.cost
 	inventory = next_inventory
 	_apply_items()
@@ -530,15 +538,10 @@ func _bot_auto_buy(delta: float) -> void:
 		if not _bot_buy_next():break
 
 func _bot_buy_next() -> bool:
+	if not stolen_blueprint.is_empty():return BuildStealer.buy_next(self)
 	var build = ItemData.BUILD_ORDERS.get(hero_key, [])
 	if bot_build_idx >= build.size():
-		var preferred = "training_ap" if bonus_ap > bonus_ad else "training_ad"
-		if hero_key in ["garen","darius","malphite","thresh"]: preferred = "training_hp"
-		var choices = [preferred,"training_hp","training_armor","training_mr"]
-		var cheapest = preferred
-		for id in choices:
-			if MatchTraining.price(id,consumable_counts) < MatchTraining.price(cheapest,consumable_counts): cheapest = id
-		return try_buy_item(cheapest)
+		return _bot_buy_training()
 	var next_id = build[bot_build_idx]
 	var it = ItemData.ITEMS[next_id]
 	if inventory.has(next_id):
@@ -548,6 +551,15 @@ func _bot_buy_next() -> bool:
 		bot_build_idx += 1
 		return true
 	return false
+
+func _bot_buy_training() -> bool:
+	var preferred = "training_ap" if bonus_ap > bonus_ad else "training_ad"
+	if hero_key in ["garen","darius","malphite","thresh"]: preferred = "training_hp"
+	var choices = [preferred,"training_hp","training_armor","training_mr"]
+	var cheapest = preferred
+	for id in choices:
+		if MatchTraining.price(id,consumable_counts) < MatchTraining.price(cheapest,consumable_counts): cheapest = id
+	return try_buy_item(cheapest)
 
 func grant_comeback_gold() -> int:
 	last_comeback_gold=0
@@ -576,6 +588,7 @@ func try_level_skill(idx: int) -> bool:
 		return true
 	if not can_level_skill(idx): return false
 	skill_ranks[idx] += 1
+	if skill_history.size()<18:skill_history.append({"index":idx,"rank":skill_ranks[idx]})
 	if hero_key=="vayne" and idx==1:ExpansionKits.tick(self,0.)
 	skill_points -= 1
 	_recompute_stats()
@@ -589,7 +602,10 @@ func _bot_spend_points() -> void:
 	var prio = hero["priority"]
 	while skill_points > 0:
 		var picked = -1
-		for idx in prio:
+		var path=stolen_blueprint.get("skill_order",[])
+		while stolen_skill_cursor<path.size() and skill_ranks[path[stolen_skill_cursor].index]>=path[stolen_skill_cursor].rank:stolen_skill_cursor+=1
+		if stolen_skill_cursor<path.size() and can_level_skill(path[stolen_skill_cursor].index):picked=path[stolen_skill_cursor].index
+		for idx in ([] if picked>=0 else prio):
 			if can_level_skill(idx):
 				picked = idx; break
 		if picked < 0: break
@@ -1428,12 +1444,24 @@ func _try_bot_cast(target) -> void:
 		if try_cast_skill(i, point):
 			casts += 1
 			if casts >= 1: break
-	if summoner_cds[1] <= 0 and can_secure_kill(target) and distance < 240:
-		ai_ignite_target = target
-		get_tree().call_group("game_main", "cast_summoner", self, 1)
-	if summoner_cds[0] <= 0 and hp < hp_max * 0.25 and distance < 180:
-		ai_flash_pt = global_position + (global_position - target.world_pos()).normalized() * 280
-		get_tree().call_group("game_main", "cast_summoner", self, 0)
+	for slot in range(2):
+		if summoner_cds[slot]>0:continue
+		match summoner_spells[slot]:
+			"ignite":
+				if not can_secure_kill(target) or distance>=240:continue
+				ai_ignite_target=target
+			"flash":
+				if hp>=hp_max*.25 or distance>=180:continue
+				ai_flash_pt=GameState.clamp_walkable(global_position+(global_position-target.world_pos()).normalized()*280)
+				if not BotSafety.can_enter(self,ai_flash_pt,false):continue
+			"heal":
+				var rescue=hp<hp_max*.45
+				for ally in GameState.champions:
+					if ally!=self and ally.team==team and not ally.dead and ally.hp<ally.hp_max*.35 and ally.world_pos().distance_to(world_pos())<450:rescue=true
+				if not rescue:continue
+			"ghost":
+				if not ((hp<hp_max*.35 and distance<350) or (can_secure_kill(target) and distance>atk_range+35)):continue
+		get_tree().call_group("game_main","cast_summoner",self,slot)
 
 # ============== Visual helpers ==============
 func _make_spin_aura() -> Node2D:

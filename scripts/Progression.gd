@@ -22,6 +22,7 @@ var difficulty: int = 1
 var levels: Dictionary = {}
 var save_path: String = "user://progression.cfg"
 var persistent: bool = false
+var build_records: Array = []
 var last_reward: int = 0
 var awarded: bool = false
 var save_error: String = ""
@@ -45,7 +46,7 @@ var loot_rng=RandomNumberGenerator.new()
 func load_profile() -> void:
 	persistent = true
 	loot_rng.randomize()
-	levels.clear();gear_stash.clear();gear_equipped.clear();daily.clear()
+	levels.clear();gear_stash.clear();gear_equipped.clear();daily.clear();build_records.clear()
 	var file = ConfigFile.new()
 	if file.load(save_path) != OK:
 		refresh_daily(false)
@@ -62,6 +63,8 @@ func load_profile() -> void:
 	credits = clampi(int(file.get_value("profile", "credits", 0)), 0, 2000000000)
 	difficulty = clampi(int(file.get_value("profile", "difficulty", 1)), 1, 99)
 	for key in UPGRADES: levels[key] = clampi(int(file.get_value("upgrades", key, 0)), 0, 99)
+	var saved_builds=file.get_value("build_stealer","records",[])
+	if saved_builds is Array:build_records=BuildStealer.ranked(saved_builds)
 	var saved_stash=file.get_value("equipment","stash",[])
 	if saved_stash is Array:
 		var ids={}
@@ -95,7 +98,8 @@ func save_profile() -> bool:
 	file.set_value("profile", "credits", credits)
 	file.set_value("profile", "difficulty", difficulty)
 	for key in UPGRADES: file.set_value("upgrades", key, int(levels.get(key, 0)))
-	file.set_value("profile","schema",2)
+	file.set_value("profile","schema",3)
+	file.set_value("build_stealer","records",build_records)
 	file.set_value("equipment","stash",gear_stash)
 	file.set_value("equipment","equipped",gear_equipped)
 	file.set_value("equipment","next_id",next_gear_id)

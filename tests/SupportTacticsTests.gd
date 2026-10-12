@@ -8,7 +8,7 @@ func fresh(key: String) -> void:
 func _ready() -> void:
  await get_tree().process_frame
  Progression.persistent=false;Progression.levels.clear();Progression.difficulty=1;GameState.reset()
- game=load("res://scripts/Main.gd").new();add_child(game);game.set_process(false);game._start_game("soraka")
+ game=load("res://scripts/Main.gd").new();add_child(game);game.set_process(false);game.network_config={"blue":["soraka","ashe","garen"],"red":["garen","lux","darius"],"players":[{"peer":1,"slot":0,"name":"Test","spells":["flash","ignite"],"bonuses":{}}]};game._start_game("soraka")
  check(not Input.use_accumulated_input,"raw input is dispatched without frame accumulation")
  fresh("soraka");var ally=GameState.champions[1];var hp=hero.hp
  check(hero.try_cast_skill(1,ally.world_pos()),"Seren heals selected ally")

@@ -163,14 +163,18 @@ func on_level_up(champion) -> void:
 		if panel.visible: build_panel()
 		refresh_attention()
 	else:
-		var index=roll_choices(champion)[0]
-		apply_augment(champion,index,roll_offer(index,champion.level))
+		var copied=BuildStealer.upgrade_at(champion,champion.level)
+		if not copied.is_empty():apply_augment(champion,copied.index,copied,champion.level)
+		else:
+			var index=roll_choices(champion)[0]
+			apply_augment(champion,index,roll_offer(index,champion.level),champion.level)
 # Compatibility entry used by tests: rewards come only from on_level_up.
 func refresh_milestones() -> void:
 	pass
 
-func apply_augment(champion, index: int, offer: Dictionary = {}) -> void:
+func apply_augment(champion, index: int, offer: Dictionary = {},earned_level: int=0) -> void:
 	var augment = AUGMENTS[index] if offer.is_empty() else offer
+	if earned_level in MILESTONES and champion.augment_history.size()<8 and not champion.augment_history.any(func(entry):return entry.level==earned_level):champion.augment_history.append({"level":earned_level,"index":index,"stats":augment.stats.duplicate(true)})
 	for stat in augment.stats:
 		champion.run_bonus[stat] = champion.run_bonus.get(stat, 0.0) + augment.stats[stat]
 	champion._apply_items()
@@ -222,7 +226,7 @@ func choose(index: int) -> void:
 		panel.hide()
 		return
 	if pending.is_empty() or not choices.has(index) or not GameState.running or GameState.paused: return
-	apply_augment(GameState.player, index,offers.get(index,{}))
+	apply_augment(GameState.player, index,offers.get(index,{}),int(pending[0]))
 	picked.append(AUGMENTS[index].name)
 	pending.pop_front()
 	choices.clear()

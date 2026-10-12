@@ -8,9 +8,9 @@ static func show(game) -> void:
  panel.offset_left=-660;panel.offset_right=660;panel.offset_top=-430;panel.offset_bottom=430
  var style=StyleBoxFlat.new();style.bg_color=Color("0c1724");style.border_color=Color("c5a15e");style.set_border_width_all(2);style.set_content_margin_all(24.);panel.add_theme_stylebox_override("panel",style)
  var column=VBoxContainer.new();column.add_theme_constant_override("separation",14);panel.add_child(column)
- column.add_child(RiftMenus.label("BUILD STEALER • BEST %d / 10" % Progression.build_records.size(),32))
+ column.add_child(RiftMenus.label("BUILD STEALER • BEST %d / 10 HEROES" % Progression.build_records.size(),32))
  column.add_child(RiftMenus.label("Completed PvE runs • 15+ hero kills • K/D ≥ 5 • Saved on the host",19))
- column.add_child(RiftMenus.label("Two enemy Echoes borrow saved builds; one enemy stays fresh. Items cost gold; upgrades unlock by level.",18))
+ column.add_child(RiftMenus.label("One best build per hero; a higher score replaces it. Up to two Echoes; enemy heroes never repeat.",18))
  var scroll=ScrollContainer.new();scroll.name="BuildRows";scroll.size_flags_vertical=Control.SIZE_EXPAND_FILL;scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED;column.add_child(scroll)
  var list=VBoxContainer.new();list.size_flags_horizontal=Control.SIZE_EXPAND_FILL;list.add_theme_constant_override("separation",12);scroll.add_child(list)
  if Progression.build_records.is_empty():

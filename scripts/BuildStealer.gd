@@ -66,7 +66,9 @@ static func ranked(raw: Array) -> Array:
  for candidate in raw.slice(0,CANDIDATE_LIMIT):
   var record=validate(candidate)
   if record.is_empty():continue
-  if not unique.has(record.id) or record.score>unique[record.id].score:unique[record.id]=record
+  # Each hero owns one library slot, even when items or rolled upgrades differ.
+  # Equal scores keep the existing record; only an improvement replaces it.
+  if not unique.has(record.hero) or record.score>unique[record.hero].score:unique[record.hero]=record
  var records=unique.values()
  records.sort_custom(func(a,b):return a.score>b.score if a.score!=b.score else (a.stage>b.stage if a.stage!=b.stage else a.id<b.id))
  return records.slice(0,LIMIT)
@@ -81,33 +83,35 @@ static func record_match(winner: int) -> String:
  var previous=Progression.build_records.duplicate(true);var candidates=previous.duplicate(true);var learned=[]
  for c in GameState.champions:
   var record=capture(c,GameState.reward_difficulty,winner==c.team)
-  if not record.is_empty():candidates.append(record);learned.append(record.id)
+  if not record.is_empty():candidates.append(record);learned.append(record)
  Progression.build_records=ranked(candidates)
  if learned.is_empty():return "Build stealer: 15+ hero kills and K/D ≥ 5 records your build."
  if not Progression.save_profile():Progression.build_records=previous;return "Build stealer: could not save this run's builds."
  var retained=0
- for id in learned:
-  if Progression.build_records.any(func(record):return record.id==id):retained+=1
- return "Build stealer: %d qualifying build(s), %d in the best 10 • Library %d/10" % [learned.size(),retained,Progression.build_records.size()]
+ for candidate in learned:
+  if Progression.build_records.any(func(record):return record==candidate):retained+=1
+ return "Build stealer: %d qualifying build(s), %d in the best 10 • Unique heroes %d/10" % [learned.size(),retained,Progression.build_records.size()]
 static func assign(config: Dictionary) -> void:
  config["stolen_builds"]=[]
  if str(config.get("mode","pve"))=="pvp":return
+ config.red=MatchRoster.unique_enemies(config.red,config.blue)
  var pool=ranked(Progression.build_records)
  if pool.is_empty():return
  var fresh=pool.filter(func(record):return not last_used.has(record.id))
  if fresh.size()>=2:pool=fresh
- pool.shuffle();var first=pool[0]
- var different=pool.filter(func(record):return record.hero!=first.hero)
- var second=different.pick_random() if not different.is_empty() else pool[1] if pool.size()>1 else first
- var slots=[0,1,2];slots.shuffle();var picks=[first,second];last_used=[first.id,second.id]
- for i in range(2):
+ pool.shuffle();var picks=pool.slice(0,2)
+ var slots=[0,1,2];slots.shuffle();last_used=picks.map(func(record):return record.id)
+ for i in range(picks.size()):
   config.red[slots[i]]=picks[i].hero
   config.stolen_builds.append({"slot":3+slots[i],"record":picks[i].duplicate(true)})
- # Exactly one ordinary enemy remains, with a fresh hero distinct from both echoes.
- var normal=slots[2];var blocked=[first.hero,second.hero]
- var options=ChampionData.CHAMPIONS.keys().filter(func(key):return key!=last_normal and not blocked.has(key) and not config.blue.has(key) and not MatchRoster.previous_enemies.has(key))
- if options.is_empty():options=ChampionData.CHAMPIONS.keys().filter(func(key):return not blocked.has(key) and not config.blue.has(key))
- config.red[normal]=options.pick_random();last_normal=config.red[normal];MatchRoster.previous_enemies=config.red.duplicate()
+ # Until two distinct heroes are learned, leave the spare slot on normal AI.
+ # Enemy heroes are unique; Echoes may still mirror allied heroes.
+ var blocked=picks.map(func(record):return record.hero)
+ for i in range(picks.size(),3):
+  var options=ChampionData.CHAMPIONS.keys().filter(func(key):return key!=last_normal and not blocked.has(key) and not config.blue.has(key) and not MatchRoster.previous_enemies.has(key))
+  if options.is_empty():options=ChampionData.CHAMPIONS.keys().filter(func(key):return not blocked.has(key) and not config.blue.has(key))
+  config.red[slots[i]]=options.pick_random();last_normal=config.red[slots[i]];blocked.append(last_normal)
+ MatchRoster.previous_enemies=config.red.duplicate()
 static func attach(c,record: Dictionary,echo: int) -> void:
  if GameState.is_pvp() or not c.is_bot or c.team!=Constants.RED:return
  var clean=validate(record)

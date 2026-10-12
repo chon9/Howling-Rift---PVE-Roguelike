@@ -28,13 +28,22 @@ func _ready() -> void:
  var candidates=[]
  for i in range(20):candidates.append(raw("ashe",i+1,15+i,2))
  var best=BuildStealer.ranked(candidates)
- # Rolls make distinct builds; stage/performance alone replace the same blueprint instead of filling ten slots.
+ # Every hero occupies one slot regardless of changed items, spells or rolls.
  check(best.size()==1,"identical builds keep only their best performance")
- candidates=[]
+ var alternate=raw("ashe",30,20,2,["long_sword"]);alternate.spells=["flash","ignite"];alternate.augments[0].stats.bonus_as=.4
+ var stronger=BuildStealer.validate(alternate)
+ check(BuildStealer.validate(raw("ashe",30)).score>record.score,"higher difficulty raises an otherwise matching run's score")
+ best=BuildStealer.ranked([record,alternate,raw()])
+ check(best.size()==1 and best[0]==stronger,"better score replaces that hero's entire blueprint; worse runs cannot replace it")
+ var tied=alternate.duplicate(true);tied.items=["dagger"]
+ check(BuildStealer.ranked([stronger,tied])[0].id==stronger.id,"equal score preserves the existing build")
+ check(BuildStealer.ranked([alternate,record])[0]==stronger,"highest-scoring hero build wins in either input order")
+ var keys=ChampionData.CHAMPIONS.keys();candidates=[]
  for i in range(20):
-  var candidate=raw("ashe",i+1,15+i,2);candidate.augments[0].stats.bonus_as=.22+i*.005;candidates.append(candidate)
+  var candidate=raw(keys[i],i+1,15+i,2);candidate.augments[0].stats.bonus_as=.22+i*.005;candidates.append(candidate)
  best=BuildStealer.ranked(candidates)
  check(best.size()==10 and best[0].score>=best[9].score,"twenty distinct candidates reduce to top ten")
+ check(distinct(best.map(func(entry):return entry.hero)).size()==10,"all ten saved builds belong to different heroes")
  var hero=GameState.player;hero.kills=15;hero.deaths=3;hero.assists=4;hero.inventory=record.items.duplicate();hero.purchase_history=record.items.duplicate();hero.augment_history=[{"level":4,"index":0,"stats":{"bonus_as":.3}}];hero.skill_history=record.skill_order.duplicate(true);hero.summoner_spells=["heal","ghost"];hero.permanent_bonus={"bonus_ad":9999};hero.level_bonus={"bonus_ad":900};hero.consumable_counts={"training_ad":2};hero._apply_items()
  var capture=BuildStealer.capture(hero,9,true)
  check(capture.hero=="ashe" and capture.items==record.items and capture.augments[0].stats.bonus_as==.3 and capture.elixirs.training_ad==2,"capture actual items, exact rolls and elixir goals")
@@ -45,6 +54,8 @@ func _ready() -> void:
  check(Progression.save_profile(),"profile saves archive atomically")
  Progression.build_records.clear();Progression.credits=0;Progression.load_profile()
  check(Progression.build_records.size()==10 and Progression.credits==4321,"archive survives reload without losing existing progression")
+ Progression.build_records=[record,stronger,BuildStealer.validate(tied)];Progression.save_profile();Progression.load_profile()
+ check(Progression.build_records.size()==1 and Progression.build_records[0]==stronger and Progression.credits==4321,"legacy same-hero archives consolidate to their best score on reload")
  Progression.persistent=false;Progression.save_path=old_path
  # Host-owned completed match records all human participants, including a remote teammate.
  Progression.build_records.clear();GameState.reward_difficulty=9
@@ -110,9 +121,20 @@ func _ready() -> void:
  var before=Progression.build_records.duplicate(true);var pvp=config.duplicate(true);pvp.mode="pvp";BuildStealer.assign(pvp)
  check(pvp.stolen_builds.is_empty(),"PvP never borrows builds")
  GameState.match_mode="pvp";check(BuildStealer.record_match(1)=="" and Progression.build_records==before,"PvP never writes build archive");GameState.match_mode="pve"
- # A single record can populate both Echo slots; no archive means all ordinary enemies.
- Progression.build_records=[record];config={"mode":"pve","blue":["ashe","lux","garen"],"red":["zed","thresh","leesin"]};BuildStealer.assign(config);check(config.stolen_builds.size()==2,"single learned build still supplies two Echoes")
- Progression.build_records.clear();BuildStealer.assign(config);check(config.stolen_builds.is_empty(),"empty archive uses normal bots")
+ # A single learned hero supplies only one Echo. Mirrors and duplicate allies remain allowed.
+ Progression.build_records=[record,stronger];config={"mode":"pve","blue":["ashe","ashe","ashe"],"red":["ashe","ashe","ashe"]};BuildStealer.assign(config)
+ check(config.stolen_builds.size()==1 and config.stolen_builds[0].record==stronger,"multiple saved variants of one hero supply only one best Echo")
+ check(distinct(config.red).size()==3 and config.blue==["ashe","ashe","ashe"] and config.red.has("ashe"),"enemy team is unique while allied duplicates and cross-team mirrors remain allowed")
+ reset(config.blue,config.red,config.stolen_builds)
+ check(GameState.champions.filter(func(c):return c.team==1 and c.stolen_blueprint.is_empty()).size()==2,"single-record match builds one Echo and two ordinary opponents")
+ var ashe_ally=GameState.champions[1];GameState.player.inventory[0]="long_sword";GameState.player.skill_cds[0]=8.
+ check(ashe_ally.inventory[0]=="" and ashe_ally.skill_cds[0]==0.,"same allied heroes keep independent inventories and cooldowns")
+ Progression.build_records.clear();config.red=["zed","zed","zed"];BuildStealer.assign(config)
+ check(config.stolen_builds.is_empty() and distinct(config.red).size()==3,"empty archive repairs duplicate enemy choices and uses normal bots")
+ Progression.build_records=best
+ for round_index in range(50):
+  config={"mode":"pve","blue":["ashe","ashe","ashe"],"red":["zed","zed","zed"]};BuildStealer.assign(config)
+  check(config.stolen_builds.size()==2 and distinct(config.red).size()==3,"full-library rotation never repeats an enemy hero")
  reset();Progression.build_records.clear();hero=GameState.player;hero.kills=15;hero.deaths=2;hero.gold=500;hero.try_buy_item("long_sword");GameState.reward_difficulty=12
  game._end_game(Constants.BLUE)
  check(Progression.build_records.size()==1 and Progression.build_records[0].stage==12,"real completed match captures immediately")
@@ -123,7 +145,12 @@ func _ready() -> void:
  game._return_to_main_menu();game.set_process(false);BuildLibraryMenu.show(game)
  check(game.menu.has_node("BuildLibrary") and game.menu.find_child("BuildLibraryAction",true,false)!=null,"readable archive browser is on main menu")
  if DisplayServer.get_name()!="headless":
-  await RenderingServer.frame_post_draw;get_viewport().get_texture().get_image().save_png("res://tests/build-library-v067.png")
+  await RenderingServer.frame_post_draw;get_viewport().get_texture().get_image().save_png("res://tests/build-library-v068.png")
  game.queue_free();GameState.reset()
  for frame in range(4):await get_tree().process_frame
  print("BUILD STEALER: %d checks, %d failures" % [checks,failures]);get_tree().quit(0 if failures==0 else 1)
+
+func distinct(values: Array) -> Dictionary:
+ var seen={}
+ for value in values:seen[value]=true
+ return seen
